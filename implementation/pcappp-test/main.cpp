@@ -11,11 +11,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 
-
-#include <boost/lambda/lambda.hpp>
-#include <iterator>
-#include <algorithm>
-
+#include<omp.h>
 
 //#include <PcapFileDevice.h>
 int main() {
@@ -23,8 +19,8 @@ int main() {
 
     /// Reading the file/ creating the reader
     auto start2 = std::chrono::high_resolution_clock::now();
-    pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
-    //pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
+    //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
+    pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
 
     auto end2 = std::chrono::high_resolution_clock::now();
     auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
@@ -164,5 +160,39 @@ int main() {
         std::cout<<"vectors are not equal\n";
         return 1;
     }
+
+
+
+////////////////////
+
+
+
+    int threadcount = 2;//omp_get_num_threads();
+    int objcount = 10000000;
+    auto start8 = std::chrono::high_resolution_clock::now();
+
+#pragma omp parallel num_threads(threadcount)
+{
+    if((omp_get_thread_num()%omp_get_num_threads()) == 0)
+    {
+       // std::cout<<"threadnum 0: "<<omp_get_thread_num()<<std::endl;
+        std::ofstream ofs("testfiles/filename0");
+        boost::archive::binary_oarchive oa(ofs);
+        for (int i = 0; i < objcount; ++i)
+            oa << IPTuple();
+    }
+    if((omp_get_thread_num()+1)%omp_get_num_threads() == 0)
+    {
+      //  std::cout<<"threadnum 1: "<<omp_get_thread_num()<<std::endl;
+        std::ofstream ofs("testfiles/filename1");
+        boost::archive::binary_oarchive oa(ofs);
+        for (int i = 0; i < objcount; ++i)
+            oa << IPTuple();
+    }
+}
+    auto end8 = std::chrono::high_resolution_clock::now();
+    auto duration8 = std::chrono::duration_cast<std::chrono::nanoseconds>(end8-start8).count();
+    std::cout << "write time per packet: " << duration8 / (objcount*threadcount) <<" \ttotaltime: "<< duration7<<std::endl<< std::endl;
+
     return 0;
 }
