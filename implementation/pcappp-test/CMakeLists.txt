@@ -27,7 +27,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test main.cpp)
+add_executable(pcappp_test main.cpp IPTuple.h)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 

@@ -35,13 +35,19 @@ PCAPPP_BUILD_FLAGS += $(LDFLAGS)
 
 HAS_PCAP_IMMEDIATE_MODE := 1
 
+# Boost C++ library Header
+BOOST = /usr/include/boost
+# Boost build location
+BOOST_LIB = /usr/lib/x86_64-linux-gnu/
+# Boost serialization library  (filename excluding lib and .a)
+BOOST_SERIALIZATION = -lboost_serialization
 
 # All Target
 all:
 #	if not [ -d build ]; then mkdir build; fi
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -c -o build/main.o
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS)
+	g++ main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
 	./build/a.out
 
 # Clean Target
