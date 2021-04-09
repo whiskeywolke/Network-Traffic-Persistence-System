@@ -7,53 +7,115 @@
 #include <pcapplusplus/Packet.h>
 #include <chrono>
 #include <fstream>
-#include "IPTuple.h"
+#include "IpTuple/IPTuple.h"
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/lockfree/queue.hpp>
+#include <boost/thread/thread.hpp>
+#include <pcap/pcap.h>
+//#include "reader/Reader.h"
+
 
 #include<omp.h>
-
+#include "RingBuffer/RingBuffer.h"
 //#include <PcapFileDevice.h>
+
+#define QUEUESIZE  128
+#define BATCHSIZE 100
+
+
+void reserveSpace(){
+
+}
+class Wrapper{
+public:
+    pcpp::RawPacket p;
+
+    Wrapper(const pcpp::RawPacket & x): p(x){};
+};
+
 int main() {
+
     std::cout << "\n\n\n\n\n"<< std::endl;
 
-    IPTuple x = IPTuple();
+    boost::lockfree::queue<pcpp::RawPacketVector*> queue(128);
+    const char *fileName = "./testfiles/example.pcap";
 
-    std::cout<<"size of tuple: "<< sizeof(x)<<std::endl;
+    {
+        pcpp::PcapFileReaderDevice r(fileName);
+        r.open();
+        pcpp::RawPacketVector rpv;
+        r.getNextPackets(rpv);
+        queue.push(&rpv);
+    }
+
+    pcpp::RawPacketVector *rpv2;
+    pcpp::RawPacket testp;
+    queue.pop(rpv2);
+    pcpp::Packet p =  rpv2->at(0);
+
+    p.getFirstLayer();
+
+    pcap_loop()
 
 
-    /// Reading the file/ creating the reader
-    auto start2 = std::chrono::high_resolution_clock::now();
+//    RingBuffer<pcpp::RawPacketVector, 10> r{};
+
+    pcap* pcap;
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    struct pcap_pkthdr* hdr                      = {};
+    const u_char*       pl_buf                   = {};
+    int                 pcap_status              = 0;
+    bool                done                     = false;
+
+
+    {
+        if (!(pcap = pcap_open_offline(fileName, errbuf)))
+            throw std::runtime_error("pcap_reader: could not open ");
+    }
+    {
+        pcap_status = pcap_next_ex(pcap, &hdr, &pl_buf);
+
+        if (pcap_status == -2)
+            done = true;
+    }
+
+    const unsigned char** buf_;
+    unsigned long& timestamp_us;
+    unsigned& frame_len_;
+    unsigned& cap_len_;
+
+    {
+        *buf_ = pl_buf;
+        timestamp_us_ = (unsigned long) _hdr->ts.tv_sec * 1000000 + _hdr->ts.tv_usec;
+        frame_len_ = _hdr->len;
+        cap_len_   = _hdr->caplen;
+        return !_done;
+    }
+
+
+
+/*
+
     //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
     pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
 
-    auto end2 = std::chrono::high_resolution_clock::now();
-    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
-    std::cout<<"reading file duration: "<<duration2<<" nanoseconds\n\n";
-    if (!reader.open())
-    {
-        printf("Error opening the pcap file\n");
-        return 1;
+    if (!reader.open()){
+        throw "error opening the pcap file";
     }
+
 
 
 
     ///parsing the file
     pcpp::RawPacketVector rpv;
-    auto start3 = std::chrono::high_resolution_clock::now();
+
     reader.getNextPackets(rpv);
     pcap_stat stat{};
     reader.getStatistics(stat);
     reader.close();
-    auto end3 = std::chrono::high_resolution_clock::now();
-    auto duration3 = std::chrono::duration_cast<std::chrono::nanoseconds>(end3-start3).count();
 
-    if(stat.ps_recv!=rpv.size()){
-        std::cout<<"packetcount does not match\n";
-    }
-    std::cout<<"packet count: "<<rpv.size()<<std::endl;
-    std::cout<<"Parsing time per packet: "<<duration3/rpv.size()<<" \ttotaltime: "<< duration3<<std::endl;
 
     long unsigned IPCounter = 0;
     long unsigned IPv4Counter = 0;
@@ -81,7 +143,7 @@ int main() {
     std::cout<<std::endl;
 
 
-
+/*
     ///reading single packets & converting to IPTUPLE format
     int skippedCount = 0;
     std::vector<IPTuple> tuples{};
@@ -94,12 +156,13 @@ int main() {
             //printf("removing ethernet frame\n");
         }
      //   if(p.getFirstLayer()->getProtocol() != pcpp::IPv4 || p.getFirstLayer()->getProtocol() != pcpp::IPv4 ){ //if packet is not ipv4 or ipv6 then skip
+ */
   /*      if(!p.isPacketOfType(pcpp::IP)){
             printf("skipping packet %li\n", i);
             continue;
         }
   */
-       if(p.isPacketOfType(pcpp::IPv4)){
+   /*    if(p.isPacketOfType(pcpp::IPv4)){
                 IPTuple t  = IPTuple(p.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                                      p.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                                      3,
@@ -171,7 +234,7 @@ int main() {
 
 ////////////////////
 
-
+*/
 /*
     int threadcount = 2;//omp_get_num_threads();
     int objcount = 10000000;
@@ -201,5 +264,6 @@ int main() {
     auto duration8 = std::chrono::duration_cast<std::chrono::nanoseconds>(end8-start8).count();
     std::cout << "write time per packet: " << duration8 / (objcount*threadcount) <<" \ttotaltime: "<< duration7<<std::endl<< std::endl;
 */
+    std::cout<<"fin"<<std::endl;
     return 0;
 }
