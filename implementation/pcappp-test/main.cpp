@@ -17,6 +17,11 @@
 int main() {
     std::cout << "\n\n\n\n\n"<< std::endl;
 
+    IPTuple x = IPTuple();
+
+    std::cout<<"size of tuple: "<< sizeof(x)<<std::endl;
+
+
     /// Reading the file/ creating the reader
     auto start2 = std::chrono::high_resolution_clock::now();
     //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
@@ -88,22 +93,17 @@ int main() {
             //printf("removing ethernet frame\n");
         }
      //   if(p.getFirstLayer()->getProtocol() != pcpp::IPv4 || p.getFirstLayer()->getProtocol() != pcpp::IPv4 ){ //if packet is not ipv4 or ipv6 then skip
-        if(!p.isPacketOfType(pcpp::IP)){
+  /*      if(!p.isPacketOfType(pcpp::IP)){
             printf("skipping packet %li\n", i);
             continue;
         }
+  */
        if(p.isPacketOfType(pcpp::IPv4)){
                 IPTuple t  = IPTuple(p.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                                      p.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                                      3,
                                     4);
                 tuples.emplace_back(t);
-            }
-       else if(p.isPacketOfType(pcpp::IPv6)){
-                tuples.emplace_back(p.getLayerOfType<pcpp::IPv6Layer>()->getSrcIpAddress(),
-                                         p.getLayerOfType<pcpp::IPv6Layer>()->getDstIpAddress(),
-                                         3,
-                                         4);
             }
        else{
             ++skippedCount;
@@ -158,18 +158,20 @@ int main() {
 
     if(!vectorsAreEqual){
         std::cout<<"vectors are not equal\n";
-        return 1;
     }
+
+////////
 
 
 
 ////////////////////
 
 
-
+/*
     int threadcount = 2;//omp_get_num_threads();
     int objcount = 10000000;
     auto start8 = std::chrono::high_resolution_clock::now();
+
 
 #pragma omp parallel num_threads(threadcount)
 {
@@ -193,6 +195,6 @@ int main() {
     auto end8 = std::chrono::high_resolution_clock::now();
     auto duration8 = std::chrono::duration_cast<std::chrono::nanoseconds>(end8-start8).count();
     std::cout << "write time per packet: " << duration8 / (objcount*threadcount) <<" \ttotaltime: "<< duration7<<std::endl<< std::endl;
-
+*/
     return 0;
 }
