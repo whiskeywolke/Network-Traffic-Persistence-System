@@ -8,70 +8,90 @@
 #include <vector>
 #include <stdio.h>
 #include <string.h>
-#include <fstream>
 #include <pcapplusplus/RawPacket.h>
 #include <pcapplusplus/Packet.h>
-#include <pcapplusplus/Device.h>
+#include <pcapplusplus/TcpLayer.h>
+#include <pcapplusplus/UdpLayer.h>
+#include <pcapplusplus/IcmpLayer.h>
 #include "IpTuple/IPTuple.h"
 #include <pcapplusplus/IpUtils.h>
 #include <pcapplusplus/IPv4Layer.h>
+#include <boost/lockfree/queue.hpp>
+#include "stdlib.h"
+#include "pcapplusplus/SystemUtils.h"
+#include "pcapplusplus/Packet.h"
+#include "pcapplusplus/EthLayer.h"
+#include "pcapplusplus/IPv4Layer.h"
+#include "pcapplusplus/TcpLayer.h"
+#include "pcapplusplus/HttpLayer.h"
+#include "pcapplusplus/PcapFileDevice.h"
+#include "IpTuple/IPTuple.h"
+#include "reader/Reader.h"
 
-using namespace std;
 
 void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
 int main() {
-    pcap_t *descr;
-    char errbuf[PCAP_ERRBUF_SIZE];
 
-    // open capture file for offline processing
-    descr = pcap_open_offline("./testfiles/example.pcap", errbuf);
-    if (descr == NULL) {
-        cout << "pcap_open_live() failed: " << errbuf << endl;
+
+    boost::lockfree::queue<IPTuple> queue(26597500);
+    std::vector<IPTuple> vec{};
+
+ //   std::string filename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap";
+    //   std::string filename = "./testfiles/example.pcap";
+  //  std::string filename = "./testfiles/test3.pcap";
+ //   std::string filename = "./testfiles/test4.pcap";
+    std::string filename = "./testfiles/test5.pcap";
+ //   std::string filename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap";
+
+    pcpp::PcapFileReaderDevice reader(filename.c_str());
+    reader.open();
+    std::vector<pcpp::RawPacket>testvec{};
+
+
+
+    Reader r = Reader(filename.c_str());
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
         return 1;
     }
 
-    pcap_pkthdr pkthdr;
-    const uint8_t* packetData =  pcap_next(descr,&pkthdr);
-    if (packetData == NULL)
-    {
-        std::cout<<"Packet could not be read. Probably end-of-file\n";
-        return 1;
-    }
-    uint8_t* pMyPacketData = new uint8_t[pkthdr.caplen];
-    memcpy(pMyPacketData, packetData, pkthdr.caplen);
+  /*  for(int i = 0; i < 17; ++i){
+        pcpp::RawPacket p1, p2;
+        reader.getNextPacket(p1);
+        std::cout<<"eins"<<std::endl;
+        r.nextRawPacket(p2);
+        std::cout<<"zwei"<<std::endl;
 
-    pcpp::RawPacket rawPacket;
-    int linkLayer = pcap_datalink(descr);
-    if(!pcpp::RawPacket::isLinkTypeValid(linkLayer)){
-        std::cout<<"linklayer is not valid\n";
-        return 1;
-    }
+        testvec.emplace_back(p1);
+        testvec.emplace_back(p2);
 
-    pcpp::LinkLayerType m_PcapLinkLayerType = static_cast<pcpp::LinkLayerType>(linkLayer);
-    bool success = rawPacket.setRawData(pMyPacketData, pkthdr.caplen, pkthdr.ts,static_cast<pcpp::LinkLayerType>(m_PcapLinkLayerType), pkthdr.len);
-    if(!success){
-        std::cout<<"could not set raw packet\n";
-        return 1;
     }
+*/
 
-    pcpp::Packet p = &rawPacket;
+ /*   bool success;
+    do{
+        IPTuple test;
+        success = r.nextIpTuple(test);
+        vec.emplace_back(test);
+  //      queue.push(test);
+    } while (success);
+*/
 
-    if(p.getFirstLayer()->getProtocol() == pcpp::Ethernet){
-        p.removeFirstLayer();
-        printf("removing ethernet frame\n");
+    std::cout<<"converted: "<<r.getConvertedPackets() << " parsed: " << r.getParsedPackets()<<std::endl;
+
+    IPTuple t2;
+    for(int i = 0; i < 81;++i){
+        t2 = IPTuple();
+        std::cout<<i+1<<std::endl;
+        r.nextIpTuple(t2);
+     //   vec.emplace_back(t2);
+     //   queue.push(t2);
     }
-    if(p.isPacketOfType(pcpp::IPv4)){
-        IPTuple t  = IPTuple(p.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
-                             p.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
-                             3,
-                             4);
-        std::cout<<t.toString()<<std::endl;
-        auto dst = pcpp::IPv4Address(t.getV4Dst());
-        auto src = pcpp::IPv4Address(t.getV4Src());
+    std::cout<<"converted: "<<r.getConvertedPackets() << " parsed: " << r.getParsedPackets()<<std::endl;
+    r.nextIpTuple(t2);
+    std::cout<<"converted: "<<r.getConvertedPackets() << " parsed: " << r.getParsedPackets()<<std::endl;
 
-        std::cout<<"dst: "<<dst.toString()<<" src: "<<src.toString()<<std::endl;
-    }
 
     /////////////////
 /*
@@ -93,7 +113,7 @@ int main() {
         return 1;
     }
 */
-    cout << "capture finished" << endl;
+    std::cout << "capture finished" << std::endl;
 
     return 0;
 }
@@ -107,7 +127,7 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
     u_int sourcePort, destPort;
     u_char *data;
     int dataLength = 0;
-    string dataStr = "";
+    std::string dataStr = "";
 
     ethernetHeader = (struct ether_header*)packet;
     if (ntohs(ethernetHeader->ether_type) == ETHERTYPE_IP) {
@@ -133,9 +153,9 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
             }
 
             // print the results
-            cout << sourceIp << ":" << sourcePort << " -> " << destIp << ":" << destPort << endl;
+            std::cout << sourceIp << ":" << sourcePort << " -> " << destIp << ":" << destPort << std::endl;
             if (dataLength > 0) {
-                cout << dataStr << endl;
+                std::cout << dataStr << std::endl;
             }
         }
     }

@@ -26,7 +26,8 @@ int main() {
     /// Reading the file/ creating the reader
     auto start2 = std::chrono::high_resolution_clock::now();
     //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
-    pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
+  //  pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
+    pcpp::PcapFileReaderDevice reader("./testfiles/test5.pcap");
 
     auto end2 = std::chrono::high_resolution_clock::now();
     auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
@@ -161,13 +162,6 @@ int main() {
         std::cout<<"vectors are not equal\n";
     }
 
-//////// test boost lockfree queue
-
-    boost::lockfree::queue<int> queue(128);
-    queue.push(1);
-    int ret;
-    queue.pop(ret);
-    std::cout<<"ret: "<<ret<<std::endl;
 
 ////////////////////
 
