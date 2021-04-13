@@ -27,7 +27,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test src/main.cpp src/IpTuple/IPTuple.h src/reader/Reader.h src/RingBuffer/RingBuffer.h)
+add_executable(pcappp_test src/main.cpp src/IpTuple/IPTuple.h src/reader/Reader.h src/RingBuffer/RingBuffer.h src/RingBuffer/threadedQueue.h)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 

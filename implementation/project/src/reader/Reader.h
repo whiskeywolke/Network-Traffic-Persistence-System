@@ -130,12 +130,12 @@ public:
             }
             pcpp::Packet parsedPacket = &temp;
             if(parsedPacket.isPacketOfType(pcpp::IPv4)) {
-                if (parsedPacket.isPacketOfType(pcpp::UDP)) {
-                    ++UDPCount;
-                    return makeIpTupleFromUDP(parsedPacket, tuple);
-                } else if (parsedPacket.isPacketOfType(pcpp::TCP)) {
+                if (parsedPacket.isPacketOfType(pcpp::TCP)) {
                     ++TCPCount;
                     return makeIpTupleFromTCP(parsedPacket, tuple);
+                } else if (parsedPacket.isPacketOfType(pcpp::UDP)) {
+                    ++UDPCount;
+                    return makeIpTupleFromUDP(parsedPacket, tuple);
                 } else if (parsedPacket.isPacketOfType(pcpp::ICMP)) {
                     ++ICMPCount;
                     return makeIpTupleFromICMP(parsedPacket, tuple);

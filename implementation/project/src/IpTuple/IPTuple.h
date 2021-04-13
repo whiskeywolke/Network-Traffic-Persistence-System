@@ -35,15 +35,17 @@ private:
     uint16_t portDst;
     uint8_t protocol;
     //TODO add timestamp
+    bool isValid;
 
 public:
 
     IPTuple() {
-        portSrc = 0;
+        this->isValid = false;
+ /*       portSrc = 0;
         portDst = 0;
         v4Src = pcpp::IPv4Address("127.0.0.1").toInt();
         v4Dst = pcpp::IPv4Address("1.1.1.1").toInt();
-    }
+   */ }
 
     IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t protocolI){
         this->v4Src = v4SrcI.toInt();
@@ -51,6 +53,7 @@ public:
         this->portSrc = portSrcI;
         this->portDst = portDstI;
         this->protocol = protocolI;
+        this->isValid = true;
     }
 
     uint32_t getV4Src() const {
@@ -74,6 +77,8 @@ public:
     }
 
     std::string toString(){
+        if(!isValid)
+            return nullptr;
         return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " " + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst);
     }
 
@@ -83,6 +88,9 @@ public:
                 this->portDst == rhs.portDst &&
                 this->portSrc == rhs.portSrc;
 
+    }
+    bool isvalid() const{
+        return this->isValid;
     }
 
 };
