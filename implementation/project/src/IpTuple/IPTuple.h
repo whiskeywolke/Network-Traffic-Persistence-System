@@ -1,16 +1,19 @@
 #ifndef IMPLEMENTATION_IPTUPLE_H
 #define IMPLEMENTATION_IPTUPLE_H
 
+#include <arpa/inet.h>
+#include <string>
+
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+
+
 #include <pcapplusplus/IpUtils.h>
 #include <pcapplusplus/IPv4Layer.h>
 
 
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-
-#include <string>
 
 class IPTuple {
     friend class boost::serialization::access;
@@ -81,5 +84,6 @@ public:
                 this->portSrc == rhs.portSrc;
 
     }
+
 };
 #endif //PCAPPP_TEST_IPTUPLE_H

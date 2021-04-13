@@ -3,6 +3,7 @@
 #include <pcapplusplus/PcapFileDevice.h>
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/TcpLayer.h>
+#include <pcapplusplus/UdpLayer.h>
 #include <pcapplusplus/Layer.h>
 #include <pcapplusplus/Packet.h>
 #include <chrono>
@@ -13,6 +14,32 @@
 #include <boost/lockfree/queue.hpp>
 
 #include<omp.h>
+
+
+inline bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple) {
+    tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
+                    packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
+                    ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
+                    ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst)
+                    );
+    return true;
+}
+inline bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple) {
+    tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
+                    packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
+                    ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
+                    ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portDst)
+                    );
+    return true;
+}
+inline bool makeIpTupleFromICMP(const pcpp::Packet& packet, IPTuple& tuple) {
+    tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
+                    packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
+                    0,
+                    0
+                    );
+    return true;
+}
 
 //#include <PcapFileDevice.h>
 int main() {
@@ -25,9 +52,9 @@ int main() {
 
     /// Reading the file/ creating the reader
     auto start2 = std::chrono::high_resolution_clock::now();
-    //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
+    pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
   //  pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
-    pcpp::PcapFileReaderDevice reader("./testfiles/test5.pcap");
+  //  pcpp::PcapFileReaderDevice reader("./testfiles/test5.pcap");
 
     auto end2 = std::chrono::high_resolution_clock::now();
     auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
@@ -86,14 +113,14 @@ int main() {
     ///reading single packets & converting to IPTUPLE format
     int skippedCount = 0;
     std::vector<IPTuple> tuples{};
-
+    tuples.clear();
     auto start4 = std::chrono::high_resolution_clock::now();
     for(size_t i = 0; i < rpv.size(); ++i){
          pcpp::Packet p = rpv.at(i);
-        if(p.getFirstLayer()->getProtocol() == pcpp::Ethernet){
-            p.removeFirstLayer();
+    //    if(p.getFirstLayer()->getProtocol() == pcpp::Ethernet){
+    //        p.removeFirstLayer();
             //printf("removing ethernet frame\n");
-        }
+    //    }
      //   if(p.getFirstLayer()->getProtocol() != pcpp::IPv4 || p.getFirstLayer()->getProtocol() != pcpp::IPv4 ){ //if packet is not ipv4 or ipv6 then skip
   /*      if(!p.isPacketOfType(pcpp::IP)){
             printf("skipping packet %li\n", i);
@@ -101,25 +128,37 @@ int main() {
         }
   */
        if(p.isPacketOfType(pcpp::IPv4)){
-                IPTuple t  = IPTuple(p.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
-                                     p.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
-                                     3,
-                                    4);
-                tuples.emplace_back(t);
-            }
+           IPTuple t;
+           if (p.isPacketOfType(
+                   pcpp::UDP)) {
+                makeIpTupleFromUDP(p, t);
+               tuples.emplace_back(t);
+           } else if (p.isPacketOfType(pcpp::TCP)) {
+                makeIpTupleFromTCP(p, t);
+               tuples.emplace_back(t);
+           } else if (p.isPacketOfType(pcpp::ICMP)) {
+                makeIpTupleFromICMP(p, t);
+               tuples.emplace_back(t);
+           } else{
+               ++skippedCount;
+               continue;
+           }
+       }
        else{
             ++skippedCount;
-        }
+       }
     }
     auto end4 = std::chrono::high_resolution_clock::now();
     auto duration4 = std::chrono::duration_cast<std::chrono::nanoseconds>(end4-start4).count();
     std::cout<<"conversion time per packet: "<<duration4/rpv.size()<<" \ttotaltime: "<< duration4<<std::endl;
+
     if(skippedCount !=0)
         std::cout<<"tuples size: "<<tuples.size()<<", skipped packets: "<<skippedCount<<std::endl;
     std::cout<<std::endl;
 
+    std::cout<<"handling time per packet: "<<(duration3 +duration4)/rpv.size()<<" \ttotaltime: "<< duration3+duration4<<std::endl;
 
-
+    /*
     /// serialization with boost
     std::string filename = "testfiles/tuples.dump";
     int objectCount = tuples.size();
@@ -162,7 +201,7 @@ int main() {
         std::cout<<"vectors are not equal\n";
     }
 
-
+*/
 ////////////////////
 
 

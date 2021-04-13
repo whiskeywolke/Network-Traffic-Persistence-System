@@ -15,7 +15,7 @@
 template<class T, size_t N>
 class RingBuffer {
 private:
-    std::atomic<bool> full = false;
+    std::atomic<bool> full;
     size_t push_offset = 0, pop_offset = 0;
     std::array<T, N> buffer{};
 
@@ -25,6 +25,11 @@ private:
     std::condition_variable data_cond;
     mutable std::mutex m;
 public:
+
+    RingBuffer(){
+        full = false;
+    }
+
     void push(T&& t) {
         std::unique_lock<std::mutex> lk(m);
         while(full)

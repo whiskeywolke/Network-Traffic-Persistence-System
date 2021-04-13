@@ -48,8 +48,8 @@ OPENMP = -fopenmp
 all:
 #	if not [ -d build ]; then mkdir build; fi
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP) -O0 #TODO REMOVE -O0 (disables compiler optimizations)
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) -O0 #TODO REMOVE -O0 (disables compiler optimizations)
+	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP) #-O0 #TODO REMOVE -O0 (disables compiler optimizations)
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) #-O0 #TODO REMOVE -O0 (disables compiler optimizations)
 	./build/a.out
 
 # Clean Target

@@ -6,17 +6,17 @@
 #define IMPLEMENTATION_READER_H
 
 #include <boost/lockfree/queue.hpp>
-#include <pcapplusplus/PcapFileDevice.h>
-
-#include <pcapplusplus/TcpLayer.h>
-#include <pcapplusplus/UdpLayer.h>
-#include <pcapplusplus/IcmpLayer.h>
 
 #include <pcap.h>
 
+#include <pcapplusplus/PcapFileDevice.h>
+#include <pcapplusplus/IPv4Layer.h>
+#include <pcapplusplus/TcpLayer.h>
+#include <pcapplusplus/UdpLayer.h>
+#include <pcapplusplus/IcmpLayer.h>
+#include <pcapplusplus/Packet.h>
 
-
-#define BATCHSIZE  100
+#include <arpa/inet.h>
 
 
 class Reader{ ///inspired by https://github.com/seladb/PcapPlusPlus/blob/master/Pcap%2B%2B/src/PcapFileDevice.cpp
@@ -26,9 +26,10 @@ private:
     pcpp::LinkLayerType linkLayerType;
 
     bool isOpen = false;
-    int parsedPackets;
-    int convertedPackets;
-
+    int parsedPacketCount;
+    int UDPCount;
+    int TCPCount;
+    int ICMPCount;
 
 public:
     Reader(const char* filename){
@@ -60,8 +61,10 @@ public:
         }
         this->linkLayerType = static_cast<pcpp::LinkLayerType>(linkLayer);
         this->isOpen = true;
-        this->parsedPackets = 0;
-        this->convertedPackets = 0;
+        this->parsedPacketCount = 0;
+        this->UDPCount = 0;
+        this->TCPCount = 0;
+        this->ICMPCount = 0;
 
         return true;
     }
@@ -74,7 +77,7 @@ public:
         pcap_pkthdr pkthdr;
         const uint8_t* packetData = pcap_next(descr, &pkthdr);
         if (packetData == NULL){
-            ///could not read packet -> most likely EOF
+            ///could not readFromPcap packet -> most likely EOF
             return false;
         }
 
@@ -87,29 +90,17 @@ public:
             ///could not creat rawpacket from data
             return false;
         }
-        ++parsedPackets;
+        ++parsedPacketCount;
         return true;
     }
 
     inline bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple) {
-        std::cout<<"okay1"<<std::endl;
-
-        auto a = packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress();
-        std::cout<<"okay2"<<std::endl;
-
-        auto b = packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress();
-        std::cout<<"okay3"<<std::endl;
- /*       auto c = ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc);
-        auto d = ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst);
-        std::cout<<"okay"<<std::endl;
-*/
-  //      tuple = IPTuple(a,b,0,0, 17);
-    /*    tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
+        tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst),
                         17);
-      */  return true;
+        return true;
     }
     inline bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
@@ -138,57 +129,45 @@ public:
                 return false;
             }
             pcpp::Packet parsedPacket = &temp;
-            if(parsedPacket.isPacketOfType(pcpp::UDP)){   //TODO error if header was truncated access to fields not guaranteed
-                ++convertedPackets;
-                return makeIpTupleFromUDP(parsedPacket, tuple);
-            }
-            else if(parsedPacket.isPacketOfType(pcpp::TCP)){
-                ++convertedPackets;
-                return makeIpTupleFromTCP(parsedPacket, tuple);
-            }
-            else if(parsedPacket.isPacketOfType(pcpp::ICMP)){
-                ++convertedPackets;
-                return makeIpTupleFromICMP(parsedPacket, tuple);
+            if(parsedPacket.isPacketOfType(pcpp::IPv4)) {
+                if (parsedPacket.isPacketOfType(pcpp::UDP)) {
+                    ++UDPCount;
+                    return makeIpTupleFromUDP(parsedPacket, tuple);
+                } else if (parsedPacket.isPacketOfType(pcpp::TCP)) {
+                    ++TCPCount;
+                    return makeIpTupleFromTCP(parsedPacket, tuple);
+                } else if (parsedPacket.isPacketOfType(pcpp::ICMP)) {
+                    ++ICMPCount;
+                    return makeIpTupleFromICMP(parsedPacket, tuple);
+                }
             }
         } while (true);
+        return false;
     }
 
     int getParsedPackets() const {
-        return parsedPackets;
+        return parsedPacketCount;
     }
 
     int getConvertedPackets() const {
-        return convertedPackets;
+        return TCPCount+UDPCount+ICMPCount;
     }
 
+    int getSkippedPackets() const {
+        return getParsedPackets()-getConvertedPackets();
+    }
+
+    int getUdpCount() const {
+        return UDPCount;
+    }
+
+    int getTcpCount() const {
+        return TCPCount;
+    }
+
+    int getIcmpCount() const {
+        return ICMPCount;
+    }
 };
 
-/*
-class Reader2 {
-    //TODO adapt to also read ethernet device
-
-    pcpp::PcapFileReaderDevice reader;
-
-public:
-    Reader(const char* filename){
-        this->reader = pcpp::PcapFileReaderDevice::getReader(filename);
-        if (!reader.open()){
-            throw "error opening the pcap file";
-        }
-    }
-
-    virtual ~Reader() {
-        this->reader.close();
-    }
-
-    int getNextPackets(boost::lockfree::queue<pcpp::RawPacketVector*> queue){
-        pcpp::RawPacketVector packetVec;
-        int temp = this->reader.getNextPackets(packetVec, BATCHSIZE);
-        queue.push(&packetVec);
-        return temp;
-    }
-
-};
-*/
-
-#endif //PCAPPP_TEST_READER_H
+#endif //IMPLEMENTATION_READER_H
