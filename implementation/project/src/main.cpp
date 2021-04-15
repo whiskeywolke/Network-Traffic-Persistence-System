@@ -20,8 +20,7 @@ bool readingFinished1 = false;
 bool readingFinished2 = false;
 std::mutex mutex;
 
-void readFromPcap_boostQueue(const std::string& fileName, boost::lockfree::queue<IPTuple>* queue){
-//void readFromPcap_boostQueue(const std::string& fileName, threadedQueue<IPTuple>*queue ){
+void read_convertFromPcap_boostQueue(const std::string& fileName, boost::lockfree::queue<IPTuple>* queue){
     Reader r = Reader(fileName.c_str());
     if(!r.open()){
         std::cout<<"could not open file!\n";
@@ -44,7 +43,7 @@ void readFromPcap_boostQueue(const std::string& fileName, boost::lockfree::queue
         readingFinished1 = true;
         std::cout << "\nboost queue:\n";
         std::cout << "total duration: " << duration2 << " nanoseconds\n";
-        std::cout << "Handling time per packet: " << duration2 / r.getConvertedPackets() << std::endl;
+        std::cout << "Handling time per packet: " << duration2 / r.getParsedPackets() << std::endl;
         std::cout << "converted: " << r.getConvertedPackets() << " parsed: " << r.getParsedPackets() << std::endl;
 //    std::cout<<"vec size: "<<vec.size()<<std::endl;
 //    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
@@ -53,7 +52,7 @@ void readFromPcap_boostQueue(const std::string& fileName, boost::lockfree::queue
     }
 }
 
-void readFromPcap_ownQueue(const std::string& fileName, threadedQueue<IPTuple>*queue ){
+void read_convertFromPcap_threadQueue(const std::string& fileName, threadedQueue<IPTuple>*queue){
     Reader r = Reader(fileName.c_str());
     if(!r.open()){
         std::cout<<"could not open file!\n";
@@ -73,10 +72,10 @@ void readFromPcap_ownQueue(const std::string& fileName, threadedQueue<IPTuple>*q
     auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
     {
         std::lock_guard<std::mutex> lock(mutex);
-        readingFinished2 = true;
-        std::cout << "\nown queue:\n";
+        readingFinished1 = true;
+        std::cout << "\nthreaded queue:\n";
         std::cout << "total duration: " << duration2 << " nanoseconds\n";
-        std::cout << "Handling time per packet: " << duration2 / r.getConvertedPackets() << std::endl;
+        std::cout << "Handling time per packet: " << duration2 / r.getParsedPackets() << std::endl;
         std::cout << "converted: " << r.getConvertedPackets() << " parsed: " << r.getParsedPackets() << std::endl;
 //    std::cout<<"vec size: "<<vec.size()<<std::endl;
 //    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
@@ -85,6 +84,32 @@ void readFromPcap_ownQueue(const std::string& fileName, threadedQueue<IPTuple>*q
     }
 }
 
+void readFromPcap_ownQueue(const std::string& fileName, threadedQueue<pcpp::RawPacket>*queue ){
+    Reader r = Reader(fileName.c_str());
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
+        return;
+    }
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+
+    pcpp::RawPacket raw;
+    while(r.nextRawPacket(raw)){
+        queue->push(raw);
+    }
+
+
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        readingFinished2 = true;
+        std::cout << "\nown queue:\n";
+        std::cout << "total duration: " << duration2 << " nanoseconds\n";
+        std::cout << "Handling time per packet: " << duration2 / r.getParsedPackets() << std::endl;
+        std::cout << "converted: " << r.getParsedPackets() << " parsed: " << r.getParsedPackets() << std::endl;
+    }
+}
 
 void serializeToPcap_boostQueue(const std::string& fileName, boost::lockfree::queue<IPTuple>* queue){
 //    auto start5 = std::chrono::high_resolution_clock::now();
@@ -131,25 +156,145 @@ void serializeToPcap_ownQueue(const std::string& fileName, threadedQueue<IPTuple
 //    std::cout << "writing time per packet: " << duration5 / convertedPackets << " \ttotaltime: "<< duration5<<std::endl<< std::endl;
 }
 
+/*
+void readRawFromPcap(const std::string& fileName, boost::lockfree::queue<DataContainer>* queue){
+    Reader r = Reader(fileName.c_str());
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
+        return;
+    }
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+    DataContainer temp;
+    while(r.nextPacketData(temp)){
+        queue->push(temp);
+    }
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        readingFinished1 = true;
+        std::cout << "\nDataContainer:\n";
+        std::cout << "total duration: " << duration2 << " nanoseconds\n";
+        std::cout << "Handling time per packet: " << duration2 / r.getParsedPackets() << std::endl;
+        std::cout << "parsed: " << r.getConvertedPackets() << " parsed: " << r.getParsedPackets() << std::endl;
+//    std::cout<<"vec size: "<<vec.size()<<std::endl;
+//    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
+//    std::cout<<"skipped: "<<r.getSkippedPackets();
+        convertedPackets = r.getParsedPackets();
+        readingFinished1 = true;
+    }
+}
+*/
+
+void readRawFromPcap(const std::string& fileName, threadedQueue<DataContainer>* queue){
+    Reader r = Reader(fileName.c_str());
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
+        return;
+    }
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+    DataContainer temp;
+    while(r.nextPacketData(temp)){
+        queue->push(temp);
+    }
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        readingFinished1 = true;
+        std::cout << "\nDataContainer:\n";
+        std::cout << "total duration: " << duration2 << " nanoseconds\n";
+        std::cout << "Handling time per packet: " << duration2 / r.getParsedPackets() << std::endl;
+        std::cout << "parsed: " << r.getConvertedPackets() << " parsed: " << r.getParsedPackets() << std::endl;
+//    std::cout<<"vec size: "<<vec.size()<<std::endl;
+//    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
+//    std::cout<<"skipped: "<<r.getSkippedPackets();
+        convertedPackets = r.getParsedPackets();
+        readingFinished1 = true;
+    }
+}
+
+void pcppReader(const std::string& fileName, threadedQueue<pcpp::RawPacket>* queue){
+    pcpp::PcapFileReaderDevice r("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
+        return;
+    }
+
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+    pcpp::RawPacket temp;
+    while(r.getNextPacket(temp)){
+        queue->push(temp);
+    }
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        readingFinished1 = true;
+        std::cout << "\nDataContainer:\n";
+        std::cout << "total duration: " << duration2 << " nanoseconds\n";
+        pcap_stat stat{};
+        r.getStatistics(stat);
+        auto packetcount = stat.ps_recv;
+        std::cout << "Handling time per packet: " << duration2 / packetcount << std::endl;
+        std::cout << "parsed: " << packetcount<< " parsed: " << packetcount << std::endl;
+//    std::cout<<"vec size: "<<vec.size()<<std::endl;
+//    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
+//    std::cout<<"skipped: "<<r.getSkippedPackets();
+        convertedPackets = packetcount;
+        readingFinished1 = true;
+    }
+}
+
+void pcppReader(const std::string& fileName, pcpp::RawPacketVector *rpv){
+    pcpp::PcapFileReaderDevice r("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
+    if(!r.open()){
+        std::cout<<"could not open file!\n";
+        return;
+    }
+
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+
+    r.getNextPackets(*rpv);
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2-start2).count();
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        readingFinished1 = true;
+        std::cout << "\nDataContainer:\n";
+        std::cout << "total duration: " << duration2 << " nanoseconds\n";
+        pcap_stat stat{};
+        r.getStatistics(stat);
+        auto packetcount = stat.ps_recv;
+        std::cout << "Handling time per packet: " << duration2 / packetcount << std::endl;
+        std::cout << "parsed: " << packetcount<< " parsed: " << packetcount << std::endl;
+//    std::cout<<"vec size: "<<vec.size()<<std::endl;
+//    std::cout<<"skipped: "<< r.getParsedPackets()-r.getConvertedPackets()<<std::endl;
+//    std::cout<<"skipped: "<<r.getSkippedPackets();
+        convertedPackets = packetcount;
+        readingFinished1 = true;
+    }
+}
+
 
 int main() {
 
-  /*  RingBuffer<IPTuple, 128>buffer{};
-    IPTuple t = IPTuple();
-    buffer.push(t);
-*/
-    boost::lockfree::queue<IPTuple> queue(100);
-    threadedQueue<IPTuple> queue1{};
+///boost queue does not free memory after its lifecycle ended, no problem since the program will have a fixed number of queues during its runtime
+///but it is hard to check for memory leaks
 
-//    std::string inFilename = "./testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB
-//    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB
-    std::string inFilename = "./testfiles/example.pcap";
+//    std::string inFilename = "./testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
+//    std::string inFilename = "./testfiles/example.pcap";
 //    std::string inFilename = "./testfiles/test3.pcap";
 //    std::string inFilename = "./testfiles/test4.pcap";
-//    std::string inFilename = "./testfiles/test5.pcap";
-//    std::string inFilename = "./testfiles/test6.pcap";
+//    std::string inFilename = "./testfiles/test5.pcap"; //(3 packets)
+//    std::string inFilename = "./testfiles/test6.pcap";  // (1031565 packets) with payload
 
-
+/*
     std::string outFileName1 = "testfiles/tuples1.bin";
     std::string outFileName2 = "testfiles/tuples2.bin";
 
@@ -158,12 +303,154 @@ int main() {
     th2.join();
     th4.join();
 
-    std::thread th1(readFromPcap_boostQueue, std::ref(inFilename), &queue);
+    std::thread th1(read_convertFromPcap_threadQueue, std::ref(inFilename), &queue);
     std::thread th3(serializeToPcap_boostQueue, std::ref(outFileName1), &queue);
     th1.join();
     th3.join();
+*/
+    char x;
+    std::cout<<"start\n";
+/*
+    {
+       threadedQueue<IPTuple> queue{};
+        uint64_t i = 0;
+        for(; i < 107555567; ++i){
+            IPTuple pointer = IPTuple();
+            queue.push(pointer);
+        }
+
+        int counter = 0;
+        IPTuple temp;
+        while (!queue.empty()){
+            queue.try_pop(temp);
+            ++counter;
+        }
+        std::cout<<"counter: "<<counter<<std::endl;
+        std::cout<<i<<" char to continue queue: ";
+        char c;
+        std::cin>>c;
+        std::cout<<"emptying: "<<std::endl;
+    }
+    std::cout<<"myqueue is deleted memory should be freed: ";
+    std::cin>>x;
+    std::cout<<"\ncontinuing: "<<std::endl;
+*/
+
+/*
+    {
+        ///test when dataContainer memory is freed
+        threadedQueue<DataContainer> queue{};
+        readRawFromPcap(inFilename, &queue);
+
+        std::cout<<"insert char to empty queue: ";
+        std::cin>>x;
+        while (!queue.empty()){
+            DataContainer temp;
+            queue.try_pop(temp);
+            //temp.clear();
+        }
+
+        std::cout<<"insert char to delete queue: ";
+        std::cin>>x;
 
 
+    }
+    std::cout<<"myqueue is deleted memory should be freed";
+    std::cin>>x;
+    std::cout<<"continuing: "<<std::endl;
+*/
+
+/*    {
+        boost::lockfree::queue<IPTuple> queue(1000000);
+        uint64_t i = 0;
+        for(; i < 107555567; ++i){
+            IPTuple pointer = IPTuple();
+            queue.push(pointer);
+        }
+
+        std::cout<<i<<" char to continue queue: ";
+        char c;
+        std::cin>>c;
+        std::cout<<"emptying: "<<std::endl;
+
+        int counter = 0;
+        IPTuple temp;
+        while (!queue.empty()){
+            queue.pop(temp);
+            ++counter;
+        }
+        std::cout<<"counter: "<<counter<<std::endl;
+    }
+    std::cout<<"queue is deleted memory should be freed";
+    std::cin>>x;
+    std::cout<<"continuing: "<<std::endl;
+*/
+
+/*
+    const uint8_t *pointer;
+    {
+
+
+        threadedQueue<pcpp::RawPacket> queue{};
+        //pcppReader(inFilename, &queue);
+        //readFromPcap_ownQueue(inFilename, &queue);
+
+        std::cout<<"insert char to empty queue: ";
+        std::cin>>x;
+        bool first = true;
+        while (!queue.empty()){
+            pcpp::RawPacket temp;
+            queue.try_pop(temp);
+
+            if(first){
+                pointer = temp.getRawData();
+                std::cout<<"pointer: " << pointer<<std::endl;
+                first = false;
+            }
+
+            temp.clear();
+        }
+        //std::cout<<"insert char to delete queue: ";
+        //std::cin>>x;
+    }
+   // delete pointer;
+    std::cout<<"pointer: " << pointer<<std::endl;
+    std::cout<<"myqueue is deleted memory should be freed: ";
+    std::cin>>x;
+    std::cout<<"continuing: "<<std::endl;
+
+*/
+
+    const uint8_t *pointer2;
+    {
+
+        pcpp::RawPacketVector rpv{};
+
+        pcppReader(inFilename, &rpv);
+
+ /*       std::cout<<"insert char to empty queue: ";
+        std::cin>>x;
+        bool first = true;
+        while (!rpv.empty()){
+            pcpp::RawPacket temp;
+            queue.try_pop(temp);
+
+            if(first){
+                pointer2 = temp.getRawData();
+                std::cout<<"pointer: " << pointer2<<std::endl;
+                first = false;
+            }
+
+            temp.clear();
+        }
+  */      std::cout<<"insert char to delete queue: ";
+        std::cin>>x;
+    }
+    // delete pointer;
+    std::cout<<"pointer: " << pointer2<<std::endl;
+    std::cout<<"myqueue is deleted memory should be freed: ";
+    std::cin>>x;
+    std::cout<<"continuing: "<<std::endl;
 
 
 

@@ -37,13 +37,14 @@ public:
         value = queue.front();
         queue.pop();
     };
-    std::shared_ptr<const T> wait_and_pop(){
+  /*  std::shared_ptr<const T> wait_and_pop(){
         std::unique_lock<std::mutex> lock(mutex);
         data_cond.wait(lock, [this]{return !queue.empty();});
         std::shared_ptr<const T>retval(std::make_shared<const T>(queue.front()));
         queue.pop();
         return retval;
     };
+    */
     bool try_pop(T& value){
         std::lock_guard<std::mutex> lock(mutex);
         if(queue.empty()){
@@ -53,7 +54,7 @@ public:
         queue.pop();
         return true;
     };
-    std::shared_ptr<const T> try_pop(){
+ /*   std::shared_ptr<const T> try_pop(){
         std::lock_guard<std::mutex> lock(mutex);
         if(queue.empty()){
             return nullptr;
@@ -62,6 +63,7 @@ public:
         queue.pop();
         return retval;
     };
+    */
     bool empty() const{
         std::lock_guard<std::mutex> lock(mutex);
         return queue.empty();

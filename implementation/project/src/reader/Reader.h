@@ -19,6 +19,47 @@
 #include <arpa/inet.h>
 
 
+struct DataContainer{
+    const uint8_t* rawData = 0;
+    int rawDataLen;
+    timeval timestamp;
+    pcpp::LinkLayerType layerType;
+    int frameLength;
+  /*
+    DataContainer(const uint8_t* rawData, bpf_u_int32 rawDataLen, timeval timestamp, pcpp::LinkLayerType layerType, bpf_u_int32 frameLength){
+        this->rawData = rawData;
+        this->rawDataLen = rawDataLen;
+        this->timestamp = timestamp;
+        this->layerType = layerType;
+        this->frameLength = frameLength;
+    }
+    */
+
+
+    void set(const uint8_t* rawData, int rawDataLen, timeval timestamp, pcpp::LinkLayerType layerType, int frameLength){
+      this->rawData = rawData;
+      this->rawDataLen = rawDataLen;
+      this->timestamp = timestamp;
+      this->layerType = layerType;
+      this->frameLength = frameLength;
+    }
+
+    DataContainer& operator=(const DataContainer& rhs)/* = delete;*/
+    {
+        clear();
+        this->rawData = rhs.rawData;
+        this->rawDataLen = rhs.rawDataLen;
+        this->timestamp = rhs.timestamp;
+        this->layerType = rhs.layerType;
+        this->frameLength = rhs.frameLength;
+        return *this;
+    }
+
+    void clear() {
+        delete[] rawData;
+    }
+};
+
 class Reader{ ///inspired by https://github.com/seladb/PcapPlusPlus/blob/master/Pcap%2B%2B/src/PcapFileDevice.cpp
 private:
     const char * fileName;
@@ -81,20 +122,51 @@ public:
             return false;
         }
 
-
         uint8_t* newPacketData = new uint8_t[pkthdr.caplen];
         memcpy(newPacketData, packetData, pkthdr.caplen);
 
         rawPacket.clear();
         if(!rawPacket.setRawData(newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len)){
             ///could not creat rawpacket from data
+            std::cout<<"could not set rawpacket"<<std::endl;
             return false;
         }
+
         ++parsedPacketCount;
         return true;
     }
 
-    inline bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple) {
+    bool nextPacketData(DataContainer &dataContainer){
+        if(descr == NULL){
+            /// Need to open reader first
+            return false;
+        }
+
+        pcap_pkthdr pkthdr;
+        const uint8_t* packetData = pcap_next(descr, &pkthdr);
+        if (packetData == NULL){
+            ///could not readFromPcap packet -> most likely EOF
+            return false;
+        }
+
+
+        uint8_t* newPacketData = new uint8_t[pkthdr.caplen];
+        memcpy(newPacketData, packetData, pkthdr.caplen);
+
+        dataContainer.clear();
+        dataContainer.set(newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len);
+//        dataContainer = DataContainer{newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len};
+        /*dataContainer.rawData = newPacketData;
+        dataContainer.rawDataLen = pkthdr.caplen;
+        dataContainer.timestamp = pkthdr.ts;
+        dataContainer.layerType = linkLayerType;
+        dataContainer.frameLength = pkthdr.len;
+*/
+        ++parsedPacketCount;
+        return true;
+    }
+
+    inline static bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
@@ -102,7 +174,7 @@ public:
                         17);
         return true;
     }
-    inline bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple) {
+    inline static bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
@@ -110,7 +182,7 @@ public:
                         6);
         return true;
     }
-    inline bool makeIpTupleFromICMP(const pcpp::Packet& packet, IPTuple& tuple) {
+    inline static bool makeIpTupleFromICMP(const pcpp::Packet& packet, IPTuple& tuple) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         0,
