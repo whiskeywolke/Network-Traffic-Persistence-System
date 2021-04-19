@@ -16,17 +16,9 @@
 #include <pcapplusplus/IcmpLayer.h>
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFilter.h>
-#include "../IpTuple/IPTuple.h"
+#include "../Model/IPTuple.h"
 #include <arpa/inet.h>
-
-struct Container{
-    const unsigned char* buf;
-    unsigned cap_len;
-    struct timeval timestamp;
-    unsigned hdrlen;
-    pcpp::LinkLayerType linkLayerType;
-};
-
+#include "../Model/RawContainer.h"
 
 
 class Reader{ ///inspired by https://github.com/seladb/PcapPlusPlus/blob/master/Pcap%2B%2B/src/PcapFileDevice.cpp
@@ -77,10 +69,14 @@ public:
         this->ICMPCount = 0;
         return true;
     }
+
     bool setFilter(pcpp::GeneralFilter& filter){
         std::string filterAsString{};
         filter.parseToString(filterAsString);
+        return setFilter(filterAsString);
+    }
 
+    bool setFilter(std::string filterAsString){
         if(!this->isOpen){
             std::cout<<"open device first!"<<std::endl;
             return false;
@@ -130,7 +126,7 @@ public:
         return true;
     }
 */
-    bool next(Container* &rawPacket){
+    bool next(RawContainer* &rawPacket){
         if(descr == NULL){
             /// Need to open reader first
             return false;
@@ -145,7 +141,7 @@ public:
         uint8_t* newPacketData = new uint8_t[pkthdr.caplen];
         memcpy(newPacketData, packetData, pkthdr.caplen);
 
-        rawPacket = new Container;
+        rawPacket = new RawContainer;
 
 
         rawPacket->buf = newPacketData;
@@ -163,30 +159,6 @@ public:
         return true;
     }
 
-    inline static bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple) {
-        tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
-                        packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
-                        ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
-                        ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst),
-                        17);
-        return true;
-    }
-    inline static bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple) {
-        tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
-                        packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
-                        ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
-                        ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portDst),
-                        6);
-        return true;
-    }
-    inline static bool makeIpTupleFromICMP(const pcpp::Packet& packet, IPTuple& tuple) {
-        tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
-                        packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
-                        0,
-                        0,
-                        1);
-        return true;
-    }
 
 /*
 /// retrieves next IPTuple -> looks for the next IPTuple that is either TCP, UDP or ICMP
