@@ -15,6 +15,7 @@
 #include <pcapplusplus/UdpLayer.h>
 #include <pcapplusplus/IcmpLayer.h>
 #include <pcapplusplus/Packet.h>
+#include <pcapplusplus/PcapFilter.h>
 #include "../IpTuple/IPTuple.h"
 #include <arpa/inet.h>
 
@@ -74,10 +75,34 @@ public:
         this->UDPCount = 0;
         this->TCPCount = 0;
         this->ICMPCount = 0;
+        return true;
+    }
+    bool setFilter(pcpp::GeneralFilter& filter){
+        std::string filterAsString{};
+        filter.parseToString(filterAsString);
 
+        if(!this->isOpen){
+            std::cout<<"open device first!"<<std::endl;
+            return false;
+        }
+        struct bpf_program prog;
+        if (pcap_compile(this->descr, &prog, filterAsString.c_str(), 1, 0) < 0)
+        {
+            printf("Error compiling filter. Error message is: %s", pcap_geterr(descr));
+            pcap_freecode(&prog); //frees memory allocated by pcap_compile
+            return false;
+        }
+        if (pcap_setfilter(this->descr, &prog) < 0)
+        {
+            printf("Error setting a compiled filter. Error message is: %s", pcap_geterr(this->descr));
+            pcap_freecode(&prog);
+            return false;
+        }
+        pcap_freecode(&prog);
         return true;
     }
 
+/*
     bool nextRawPacket(pcpp::RawPacket rawPacket){
         if(descr == NULL){
             /// Need to open reader first
@@ -104,7 +129,7 @@ public:
         ++parsedPacketCount;
         return true;
     }
-
+*/
     bool next(Container* &rawPacket){
         if(descr == NULL){
             /// Need to open reader first
@@ -163,6 +188,7 @@ public:
         return true;
     }
 
+/*
 /// retrieves next IPTuple -> looks for the next IPTuple that is either TCP, UDP or ICMP
     bool nextIpTuple(IPTuple &tuple){
         pcpp::RawPacket temp;
@@ -188,7 +214,7 @@ public:
         } while (true);
         return false;
     }
-
+*/
     int getParsedPackets() const {
         return parsedPacketCount;
     }

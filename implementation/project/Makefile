@@ -45,7 +45,9 @@ BOOST_SERIALIZATION = -lboost_serialization
 #openMP flag (include both at compile time & link time to prevent unecessary warnings)
 OPENMP = -fopenmp
 # All Target
-all: build run
+.PHONY: all build run runSudo clean
+
+all: build run clean
 
 build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
@@ -60,5 +62,5 @@ runSudo:  #for access to network interfaces
 
 # Clean Target
 clean:
-	rm main.o
-	rm a.out
+	rm ./build/main.o
+	rm ./build/a.out
