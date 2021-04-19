@@ -15,50 +15,18 @@
 #include <pcapplusplus/UdpLayer.h>
 #include <pcapplusplus/IcmpLayer.h>
 #include <pcapplusplus/Packet.h>
-
+#include "../IpTuple/IPTuple.h"
 #include <arpa/inet.h>
 
-
-struct DataContainer{
-    const uint8_t* rawData = 0;
-    int rawDataLen;
-    timeval timestamp;
-    pcpp::LinkLayerType layerType;
-    int frameLength;
-  /*
-    DataContainer(const uint8_t* rawData, bpf_u_int32 rawDataLen, timeval timestamp, pcpp::LinkLayerType layerType, bpf_u_int32 frameLength){
-        this->rawData = rawData;
-        this->rawDataLen = rawDataLen;
-        this->timestamp = timestamp;
-        this->layerType = layerType;
-        this->frameLength = frameLength;
-    }
-    */
-
-
-    void set(const uint8_t* rawData, int rawDataLen, timeval timestamp, pcpp::LinkLayerType layerType, int frameLength){
-      this->rawData = rawData;
-      this->rawDataLen = rawDataLen;
-      this->timestamp = timestamp;
-      this->layerType = layerType;
-      this->frameLength = frameLength;
-    }
-
-    DataContainer& operator=(const DataContainer& rhs)/* = delete;*/
-    {
-        clear();
-        this->rawData = rhs.rawData;
-        this->rawDataLen = rhs.rawDataLen;
-        this->timestamp = rhs.timestamp;
-        this->layerType = rhs.layerType;
-        this->frameLength = rhs.frameLength;
-        return *this;
-    }
-
-    void clear() {
-        delete[] rawData;
-    }
+struct Container{
+    const unsigned char* buf;
+    unsigned cap_len;
+    struct timeval timestamp;
+    unsigned hdrlen;
+    pcpp::LinkLayerType linkLayerType;
 };
+
+
 
 class Reader{ ///inspired by https://github.com/seladb/PcapPlusPlus/blob/master/Pcap%2B%2B/src/PcapFileDevice.cpp
 private:
@@ -110,7 +78,7 @@ public:
         return true;
     }
 
-    bool nextRawPacket(pcpp::RawPacket &rawPacket){
+    bool nextRawPacket(pcpp::RawPacket rawPacket){
         if(descr == NULL){
             /// Need to open reader first
             return false;
@@ -126,8 +94,9 @@ public:
         memcpy(newPacketData, packetData, pkthdr.caplen);
 
         rawPacket.clear();
+
         if(!rawPacket.setRawData(newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len)){
-            ///could not creat rawpacket from data
+            ///could not create rawpacket from data
             std::cout<<"could not set rawpacket"<<std::endl;
             return false;
         }
@@ -136,12 +105,11 @@ public:
         return true;
     }
 
-    bool nextPacketData(DataContainer &dataContainer){
+    bool next(Container* &rawPacket){
         if(descr == NULL){
             /// Need to open reader first
             return false;
         }
-
         pcap_pkthdr pkthdr;
         const uint8_t* packetData = pcap_next(descr, &pkthdr);
         if (packetData == NULL){
@@ -149,18 +117,22 @@ public:
             return false;
         }
 
-
         uint8_t* newPacketData = new uint8_t[pkthdr.caplen];
         memcpy(newPacketData, packetData, pkthdr.caplen);
 
-        dataContainer.clear();
-        dataContainer.set(newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len);
-//        dataContainer = DataContainer{newPacketData,pkthdr.caplen,pkthdr.ts, linkLayerType, pkthdr.len};
-        /*dataContainer.rawData = newPacketData;
-        dataContainer.rawDataLen = pkthdr.caplen;
-        dataContainer.timestamp = pkthdr.ts;
-        dataContainer.layerType = linkLayerType;
-        dataContainer.frameLength = pkthdr.len;
+        rawPacket = new Container;
+
+
+        rawPacket->buf = newPacketData;
+        rawPacket->cap_len = pkthdr.caplen;
+        rawPacket->timestamp = pkthdr.ts;
+        rawPacket->linkLayerType = linkLayerType;
+        rawPacket->hdrlen = pkthdr.len;
+
+/*
+        std::cout<<std::endl;
+        std::cout<<pkthdr.caplen<<std::endl;
+        std::cout<<pkthdr.len<<std::endl;
 */
         ++parsedPacketCount;
         return true;

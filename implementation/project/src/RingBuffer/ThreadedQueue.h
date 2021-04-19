@@ -13,19 +13,19 @@
 
 
 template <typename T>
-class threadedQueue { //inspired by https://www.youtube.com/watch?v=LqrF_nygxhY
+class ThreadedQueue { //inspired by https://www.youtube.com/watch?v=LqrF_nygxhY
 private:
     std::queue<T> queue;
 
     mutable std::mutex mutex;
     std::condition_variable data_cond;
 public:
-    explicit threadedQueue(){};
-    explicit threadedQueue(const threadedQueue& other){
+    explicit ThreadedQueue(){};
+    explicit ThreadedQueue(const ThreadedQueue& other){
         std::lock_guard<std::mutex> lock(other.mutex);
         this->queue = other.queue;
     };
-    threadedQueue& operator = (const threadedQueue& rhs) = delete;
+    ThreadedQueue& operator = (const ThreadedQueue& rhs) = delete;
     void push(T value){
         std::lock_guard<std::mutex> lock(mutex);
         queue.push(value);
@@ -68,6 +68,10 @@ public:
         std::lock_guard<std::mutex> lock(mutex);
         return queue.empty();
     };
+    size_t size() const{
+        std::lock_guard<std::mutex> lock(mutex);
+        return queue.size();
+    }
 
 };
 

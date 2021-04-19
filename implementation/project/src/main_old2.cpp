@@ -2,12 +2,8 @@
 #include <pcapplusplus/PcapLiveDeviceList.h>
 #include <pcapplusplus/PlatformSpecificUtils.h>
 #include <pcapplusplus/PcapFileDevice.h>
-#include <pcapplusplus/RawPacket.h>
 #include <iostream>
 #include "RingBuffer/ThreadedQueue.h"
-#include "Reader/Reader.h"
-
-#include <memory>
 
 #include <boost/lockfree/queue.hpp>
 
@@ -25,15 +21,27 @@ int main(int argc, char* argv[])
 {
     // IPv4 address of the interface we want to sniff
     std::string interfaceIPAddr = "10.0.2.15";
-    std::string inFileName = "testfiles/test5.pcap";
+    std::string inFileName = "10.0.2.15";
 
-    Reader dev(inFileName.c_str());
-    if (!dev.open())
+
+
+    // find the interface by IP address
+    pcpp::PcapLiveDevice* dev = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByIp(interfaceIPAddr.c_str());
+
+    pcpp::IFileReaderDevice* dev2= pcpp::IFileReaderDevice::getReader(inFileName.c_str());
+    if (dev == NULL)
+    {
+        printf("Cannot find interface with IPv4 address of '%s'\n", interfaceIPAddr.c_str());
+        exit(1);
+    }
+
+    // open the device before start capturing/sending packets
+    if (!dev->open())
     {
         printf("Cannot open device\n");
         exit(1);
     }
-/*
+
     // Using filters
     pcpp::ProtoFilter tcpProtocolFilter(pcpp::TCP);
     pcpp::ProtoFilter udpProtocolFilter(pcpp::UDP);
@@ -51,37 +59,33 @@ int main(int argc, char* argv[])
 
     // set the filter on the device
     dev->setFilter(andFilter);
-*/
+
     // create the queue
-    boost::lockfree::queue<Container*> queue(1000);
+    boost::lockfree::queue<pcpp::RawPacket*> queue(1000);
+
 
     // Async packet capture with a callback function
     printf("\nStarting async capture...\n");
     std::cout<<"queue empty: "<<queue.empty()<<std::endl;
 
+    // start capture in async mode. Give a callback function to call to whenever a packet is captured and the stats object as the cookie
+    dev->startCapture(onPacketArrives, &queue);
+    // sleep for 10 seconds in main thread, in the meantime packets are captured in the async thread
+    PCAP_SLEEP(10);
 
-
-    Container* temp;
-    while(dev.next(temp)){
-        queue.push(temp);
-    }
-
-    std::cout<<"insert finished"<<std::endl;
-
-    Container* input = nullptr;
-
-    while(queue.pop(input)){
-        pcpp::RawPacket rawPacket = pcpp::RawPacket(input->buf, input->cap_len, input->timestamp, false, input->linkLayerType);
-        pcpp::Packet parsed = &rawPacket;
-        std::cout<<parsed.toString()<<std::endl;
-
-        delete[] input->buf;
-        delete input;
-    }
-
-
+    // stop capturing packets
+    dev->stopCapture();
 
     // print results
     std::cout<<"queue empty: "<<queue.empty()<<std::endl;
+    while (!queue.empty()){
+        pcpp::RawPacket* p;
+        queue.pop(p);
+        pcpp::Packet parsed = p;
+        std::cout<<parsed.toString()<<std::endl;
+    }
 
+
+    // close the device before application ends
+    dev->close();
 }

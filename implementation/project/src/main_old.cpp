@@ -13,7 +13,7 @@
 #include <boost/lockfree/queue.hpp>
 #include <boost/thread/thread.hpp>
 #include <pcap/pcap.h>
-//#include "reader/Reader.h"
+//#include "Reader/Reader.h"
 
 
 #include<omp.h>
@@ -98,10 +98,10 @@ int main() {
 
 /*
 
-    //pcpp::PcapFileReaderDevice reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
-    pcpp::PcapFileReaderDevice reader("./testfiles/example.pcap");
+    //pcpp::PcapFileReaderDevice Reader("./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap");
+    pcpp::PcapFileReaderDevice Reader("./testfiles/example.pcap");
 
-    if (!reader.open()){
+    if (!Reader.open()){
         throw "error opening the pcap file";
     }
 
@@ -111,10 +111,10 @@ int main() {
     ///parsing the file
     pcpp::RawPacketVector rpv;
 
-    reader.getNextPackets(rpv);
+    Reader.getNextPackets(rpv);
     pcap_stat stat{};
-    reader.getStatistics(stat);
-    reader.close();
+    Reader.getStatistics(stat);
+    Reader.close();
 
 
     long unsigned IPCounter = 0;
