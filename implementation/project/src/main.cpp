@@ -1,12 +1,13 @@
 #include "stdlib.h"
-#include <pcapplusplus/PcapLiveDeviceList.h>
-#include <pcapplusplus/PlatformSpecificUtils.h>
+//#include <pcapplusplus/PcapLiveDeviceList.h>
+//#include <pcapplusplus/PlatformSpecificUtils.h>
 #include <pcapplusplus/PcapFileDevice.h>
-#include <pcapplusplus/RawPacket.h>
+//#include <pcapplusplus/RawPacket.h>
 #include <iostream>
 #include "RingBuffer/ThreadedQueue.h"
 #include "Reader/Reader.h"
 #include "Converter/Converter.h"
+#include "Model/Bucket.h"
 
 #include <memory>
 #include <thread>
@@ -14,6 +15,8 @@
 #include <boost/lockfree/queue.hpp>
 
 bool readingFinished = false;
+int parsedPackets = 0;
+std::atomic<int> processedPackets { 0};
 
 std::string getPredefinedFilterAsString(){
     pcpp::ProtoFilter tcpProtocolFilter(pcpp::TCP);
@@ -37,7 +40,6 @@ std::string getPredefinedFilterAsString(){
 
 
 void readPcapFile(const std::string& fileName, boost::lockfree::queue<RawContainer*>* queue){
-//void readPcapFile(const std::string& fileName, ThreadedQueue<RawContainer*>* queue){
     Reader dev(fileName.c_str());
     if (!dev.open())
     {
@@ -58,27 +60,30 @@ void readPcapFile(const std::string& fileName, boost::lockfree::queue<RawContain
     std::cout << "reading duration: " << duration << " nanoseconds\n";
     std::cout << "Handling time per packet: " << duration / dev.getParsedPackets() << std::endl;
     std::cout << "Packet Count: " << dev.getParsedPackets() << std::endl;
+    parsedPackets = dev.getParsedPackets();
     readingFinished = true;
 }
 
 void convert(boost::lockfree::queue<RawContainer*>* queue1, boost::lockfree::queue<IPTuple>* queue2){
-//void convert(ThreadedQueue<RawContainer*>* queue1, ThreadedQueue<IPTuple>* queue2){
     RawContainer* input = nullptr;
 
     auto start = std::chrono::high_resolution_clock::now();
 
 
-    while(!readingFinished ){
+    while(!readingFinished || processedPackets<parsedPackets){
         IPTuple ipTuple;
         if(queue1->pop(input)) {
             if (Converter::convert(input, ipTuple)) {
                 //std::cout << ipTuple.toString() << std::endl;
+                //std::cout<<"timestamp "<<input->timestamp.tv_sec<<" "<< input->timestamp.tv_usec <<std::endl;
+
                 queue2->push(ipTuple);
             }
 
             // free memory allocated while reading
             delete[] input->buf;
             delete input;
+            ++processedPackets;
         }
         input = nullptr;
     }
@@ -89,7 +94,27 @@ void convert(boost::lockfree::queue<RawContainer*>* queue1, boost::lockfree::que
 
 }
 
+void aggregate(boost::lockfree::queue<IPTuple>* queue1, boost::lockfree::queue<SortedPackets*>* queue2){
+    Bucket b{};
 
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto time_since_flush = std::chrono::high_resolution_clock::now();
+    while(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() <= 10 ){
+        IPTuple t;
+        if(queue1->pop(t)){
+            b.add(t);
+        }
+        auto current_time = std::chrono::high_resolution_clock::now();
+        if(std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 1 ){
+            b.flush(queue2);
+            time_since_flush = current_time;
+            std::cout<<"flushing"<<std::endl;
+        }
+    }
+    b.flush(queue2);
+
+}
 
 
 int main(int argc, char* argv[])
@@ -104,32 +129,54 @@ int main(int argc, char* argv[])
 
 
 
-    boost::lockfree::queue<RawContainer*> queue1{100000};
-    boost::lockfree::queue<IPTuple> queue2{100000};
-
-    ThreadedQueue<RawContainer*> tQueue1{};
-    ThreadedQueue<IPTuple> tQueue2{};
+    boost::lockfree::queue<RawContainer*> queueRaw{10000};
+    boost::lockfree::queue<IPTuple> queueParsed{10000};
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::thread th1(readPcapFile, std::ref(inFilename), &queue1);
+    std::thread th1(readPcapFile, std::ref(inFilename), &queueRaw);
 
+    //th1.join();
 
-    std::thread th2(convert, &queue1, &queue2); //more than one converter thread reduces performance (synchronization overhead)
-   // std::thread th3(convert, &queue1, &queue2);
-   // std::thread th4(convert, &queue1, &queue2);
+    std::thread th2(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+    //std::thread th3(convert, &queueRaw, &queueParsed);
 
     th1.join();
     th2.join();
-   // th3.join();
-   // th4.join();
+    //th3.join();
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
     std::cout << "total duration: " << duration << " nanoseconds\n";
 
+    //TODO aggregate packets by IP in buckets
+
+    std::cout<<"start bucket"<<std::endl;
+    boost::lockfree::queue<SortedPackets*> queueBuckets{1000};
+
+    aggregate(&queueParsed, &queueBuckets);
+
+
+
+    while (!queueBuckets.empty()){
+        SortedPackets* sp;
+        if(queueBuckets.pop(sp)){
+            std::cout<<"elements in Bucket: "<<sp->length<<std::endl;
+          //  for(size_t i = 0; i < sp->length; ++i){
+          //      std::cout<<sp->start[i].toString()<<std::endl;
+          //  }
+            delete[] sp->start;
+            delete sp;
+        }
+    }
+
+
+    std::cout<<"end bucket"<<std::endl;
+
 
 
     // print results
-    std::cout<<"queue empty: "<<queue1.empty()<<std::endl;
+    std::cout << "queueRaw empty: " << queueRaw.empty() << std::endl;
+    std::cout << "queueParsed empty: " << queueParsed.empty() << std::endl;
+    std::cout << "queueBuckets empty: " << queueBuckets.empty() << std::endl;
 
 }

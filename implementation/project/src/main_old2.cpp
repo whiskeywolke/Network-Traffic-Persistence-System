@@ -10,7 +10,7 @@
 /**
  * A callback function for the async capture which is called each time a packet is captured
  */
-static void onPacketArrives(pcpp::RawPacket* packet, pcpp::PcapLiveDevice* dev, void* cookie) //TODO add threadsafe queue as cookie, put rawpacketvoctors in it
+static void onPacketArrives(pcpp::RawPacket* packet, pcpp::PcapLiveDevice* dev, void* cookie) //TO DO add threadsafe queue as cookie, put rawpacketvoctors in it
 {
     // extract the stats object form the cookie
     boost::lockfree::queue<pcpp::RawPacket*>* queue = (boost::lockfree::queue<pcpp::RawPacket*>*)cookie;

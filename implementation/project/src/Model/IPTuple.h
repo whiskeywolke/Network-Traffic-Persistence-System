@@ -26,6 +26,8 @@ class IPTuple {
         ar & portSrc;
         ar & portDst;
         ar & protocol;
+        ar & tv_sec;
+        ar & tv_usec;
     }
 
 private:
@@ -34,7 +36,10 @@ private:
     uint16_t portSrc;
     uint16_t portDst;
     uint8_t protocol;
-    //TODO add timestamp
+
+    long int tv_sec; //seconds since 1.1.1970 00:00
+    long int tv_usec; //microseconds since last second
+
     bool isValid;
 
 public:
@@ -47,12 +52,15 @@ public:
         v4Dst = pcpp::IPv4Address("1.1.1.1").toInt();
    */ }
 
-    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t protocolI){
+    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const long int &tv_secI, const long int &tv_usecI){
         this->v4Src = v4SrcI.toInt();
         this->v4Dst = v4DstI.toInt();
         this->portSrc = portSrcI;
         this->portDst = portDstI;
         this->protocol = protocolI;
+        this->tv_sec = tv_secI;
+        this->tv_usec = tv_usecI;
+
         this->isValid = true;
     }
 
