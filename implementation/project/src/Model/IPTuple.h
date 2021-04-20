@@ -6,8 +6,7 @@
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
+
 
 
 #include <pcapplusplus/IpUtils.h>
@@ -80,8 +79,16 @@ public:
         return portDst;
     }
 
-    uint8_t getAProtocol() const {
+    uint8_t getProtocol() const {
         return protocol;
+    }
+
+    long getTvSec() const {
+        return tv_sec;
+    }
+
+    long getTvUsec() const {
+        return tv_usec;
     }
 
     std::string toString(){

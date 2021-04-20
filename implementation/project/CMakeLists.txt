@@ -27,7 +27,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test src/main.cpp src/Model/IPTuple.h src/Reader/Reader.h src/RingBuffer/RingBuffer.h src/RingBuffer/ThreadedQueue.h src/Converter/Converter.h src/Model/RawContainer.h src/Model/Bucket.h)
+add_executable(pcappp_test src/main.cpp src/Model/IPTuple.h src/Reader/Reader.h src/RingBuffer/RingBuffer.h src/RingBuffer/ThreadedQueue.h src/Converter/Converter.h src/Model/RawContainer.h src/Model/Aggregate.h src/Model/CompressedBucket.h)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 
