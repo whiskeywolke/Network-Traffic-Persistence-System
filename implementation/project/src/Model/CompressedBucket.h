@@ -60,7 +60,7 @@ struct Entry{
 
     uint32_t addr;
     bool isSrc;
-    u_int32_t timestamp_offset;
+    u_int32_t timestamp_offset; //TODO check if unsigned is possible
 
     uint16_t portSrc;
     uint16_t portDst;
@@ -92,23 +92,29 @@ private:
         ar & entryCount;
         ar & hasFirst;
         ar & entries;
+        ar & hasSecond;
+        ar & matchedBySrc;
     }
 
     FirstEntry firstEntry;
     std::vector<Entry> entries;
     int entryCount;
     bool hasFirst;
+    bool hasSecond;
+    bool matchedBySrc;
 
 //    CompressedBucket() = delete;
 
 public:
     CompressedBucket() {
         hasFirst = false;
+        hasSecond = false;
+        matchedBySrc = false;
         entries = std::vector<Entry>{};
         entryCount = 0;
     }
 
-
+    //assumes that all tuples added have one matching ipv4 address
     void add(IPTuple t) {
         if(!hasFirst) {
             u_int64_t timestamp = (unsigned long) t.getTvSec() * 1000000 + t.getTvUsec();
@@ -123,21 +129,125 @@ public:
             hasFirst = true;
         }
         else{
-            bool isSrc = false;
-            isSrc = firstEntry.v4Dst == t.getV4Dst();
-            uint32_t timestampOffset = (uint32_t) firstEntry.timestamp - (unsigned long) t.getTvSec() * 1000000 + t.getTvUsec();
-            entries.emplace_back(
-                            t.getV4Src(),
-                            isSrc,
-                            timestampOffset,
-                            t.getPortSrc(),
-                            t.getPortDst(),
-                            t.getProtocol()
+            if(!hasSecond){
+                //find out which ipaddress is the same (needed for decompression)
+                if(firstEntry.v4Src==t.getV4Src()) {
+                    matchedBySrc = true;
+                }
+                else if(firstEntry.v4Dst == t.getV4Dst()) {
+                    matchedBySrc = false;
+                }
+                else{
+                    std::cout<<"no ip address is equal!"<<std::endl;
+                    return;
+                }
+                hasSecond = true;
+            }
+            bool saveSrcAddr{}; //this means that the src addr of the new Object is different, therefore we need to save it
 
+
+            //TODO simplify if else statement
+            if(matchedBySrc) { //if we match by src we need to compare it to the src addr since src of the first object is always equal
+                if (t.getV4Src() == firstEntry.v4Src) { //the src of the new object is equal to src therefore save dst
+                    saveSrcAddr = false;
+                } else if (t.getV4Dst() == firstEntry.v4Src) { //dst of the new object is equal to dst therefore save src
+                    saveSrcAddr = true;
+                }else{
+                    std::cout<<"nothing equal"<<std::endl;
+                    return;
+                }
+            }else{
+                if (t.getV4Src() == firstEntry.v4Dst) { //the src of the new object is equal to src therefore save dst
+                    saveSrcAddr = false;
+                } else if (t.getV4Dst() == firstEntry.v4Dst) { //dst of the new object is equal to dst therefore save src
+                    saveSrcAddr = true;
+                }else{
+                    std::cout<<"nothing equal"<<std::endl;
+                    return;
+                }
+            }
+
+
+            //saveSrcAddr = firstEntry.v4Src != t.getV4Src(); //when the src addresses differ dst must be equal and src needs to be saved (and therefore the saved address "saveSrcAddr")
+
+            //if(saveSrcAddr)
+            //    assert(firstEntry.v4Dst == t.getV4Src());
+
+            uint32_t timestampOffset = (uint32_t) firstEntry.timestamp - (unsigned long) t.getTvSec() * 1000000 + t.getTvUsec();
+            uint32_t ipAddr{};
+            if(saveSrcAddr){
+                ipAddr = t.getV4Src();
+            }else{
+                ipAddr = t.getV4Dst();
+            }
+
+            entries.emplace_back(
+                    ipAddr,
+                    saveSrcAddr,
+                    timestampOffset,
+                    t.getPortSrc(),
+                    t.getPortDst(),
+                    t.getProtocol()
                     );
             ++entryCount;
         }
     }
+
+    void getData(std::vector<IPTuple>& res){
+        if(!hasFirst){
+            return;
+        }
+        //make IPTuple from first element
+        uint64_t timestamp_sec = firstEntry.timestamp /1000000;
+        uint64_t timestamp_usec = firstEntry.timestamp%1000000;
+
+        IPTuple t{pcpp::IPv4Address(firstEntry.v4Src),
+                  pcpp::IPv4Address(firstEntry.v4Dst),
+                  firstEntry.portSrc,
+                  firstEntry.portDst,
+                  firstEntry.protocol,
+                  timestamp_sec,
+                  timestamp_usec};
+
+        res.emplace_back(t);
+        //make IPTuple from other elements
+        for(Entry e : entries){
+            uint32_t srcAddr{};
+            uint32_t dstAddr{};
+            if(matchedBySrc) {
+                if (e.isSrc) {
+                    srcAddr = e.addr;
+                    dstAddr = firstEntry.v4Src;
+                } else {
+                    srcAddr = firstEntry.v4Src;
+                    dstAddr = e.addr;
+                }
+            }
+            else{
+                if(e.isSrc){
+                    srcAddr = e.addr;
+                    dstAddr = firstEntry.v4Dst;
+                } else {
+                    srcAddr = firstEntry.v4Dst;
+                    dstAddr = e.addr;
+                }
+            }
+            timestamp_sec = (firstEntry.timestamp+e.timestamp_offset) / 1000000;
+            timestamp_usec = firstEntry.timestamp+e.timestamp_offset % 1000000;
+
+            IPTuple x{
+                pcpp::IPv4Address(srcAddr),
+                pcpp::IPv4Address(dstAddr),
+                e.portSrc,
+                e.portDst,
+                e.protocol,
+                timestamp_sec,
+                timestamp_usec
+            };
+            res.emplace_back(x);
+        }
+    }
+
 };
 
 

@@ -36,8 +36,8 @@ private:
     uint16_t portDst;
     uint8_t protocol;
 
-    long int tv_sec; //seconds since 1.1.1970 00:00
-    long int tv_usec; //microseconds since last second
+    uint64_t tv_sec; //seconds since 1.1.1970 00:00
+    uint64_t tv_usec; //microseconds since last second
 
     bool isValid;
 
@@ -51,7 +51,7 @@ public:
         v4Dst = pcpp::IPv4Address("1.1.1.1").toInt();
    */ }
 
-    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const long int &tv_secI, const long int &tv_usecI){
+    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const uint64_t &tv_secI, const uint64_t &tv_usecI){
         this->v4Src = v4SrcI.toInt();
         this->v4Dst = v4DstI.toInt();
         this->portSrc = portSrcI;
@@ -101,7 +101,9 @@ public:
         return this->v4Src == rhs.v4Src &&
                this->v4Dst == rhs.v4Dst &&
                 this->portDst == rhs.portDst &&
-                this->portSrc == rhs.portSrc;
+                this->portSrc == rhs.portSrc &&
+                this->tv_sec == rhs.tv_sec &&
+                this->tv_usec == rhs.tv_usec;
 
     }
     bool isvalid() const{
