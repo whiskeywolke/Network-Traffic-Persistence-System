@@ -83,18 +83,19 @@ public:
         return protocol;
     }
 
-    long getTvSec() const {
+    uint64_t getTvSec() const {
         return tv_sec;
     }
 
-    long getTvUsec() const {
+    uint64_t getTvUsec() const {
         return tv_usec;
     }
 
     std::string toString(){
         if(!isValid)
             return nullptr;
-        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " " + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst);
+        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
+                std::to_string(protocol) + " " + std::to_string(tv_sec) + " " + std::to_string(tv_usec);
     }
 
     bool operator==(const IPTuple& rhs){

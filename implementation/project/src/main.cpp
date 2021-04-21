@@ -125,9 +125,9 @@ int main(int argc, char* argv[]) {
 //    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "./testfiles/example.pcap";
 //    std::string inFilename = "./testfiles/test3.pcap";
-    std::string inFilename = "./testfiles/test4.pcap";
+//    std::string inFilename = "./testfiles/test4.pcap";
 //    std::string inFilename = "./testfiles/test5.pcap"; //(3 packets)
-//    std::string inFilename = "./testfiles/test6.pcap";  // (1031565 packets) with payload
+    std::string inFilename = "./testfiles/test6.pcap";  // (1031565 packets) with payload
 
 
     boost::lockfree::queue<RawContainer *> queueRaw{10000000};
@@ -141,8 +141,7 @@ int main(int argc, char* argv[]) {
     std::thread th1(readPcapFile, std::ref(inFilename), &queueRaw);
 
 
-    std::thread th2(convert, &queueRaw,
-                    &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+    std::thread th2(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
     std::thread th3(aggregate, &queueParsed, &queueSorted);
 
     th1.join();
@@ -154,7 +153,7 @@ int main(int argc, char* argv[]) {
 
 
     std::vector<std::vector<IPTuple>> comparisonVector{};
-    //TODO create compressedObjects
+    //create compressedObjects
 
     int bucketCount = 0;
     int sum = 0;
@@ -162,7 +161,6 @@ int main(int argc, char* argv[]) {
     while (!queueSorted.empty()) {
         SortedPackets *sp;
         if (queueSorted.pop(sp)) {
-            //std::cout<<"elements in Aggregate: "<<sp->length<<std::endl;
             sum += sp->length;
             if (sp->length > largestBucket) {
                 largestBucket = sp->length;
@@ -186,11 +184,7 @@ int main(int argc, char* argv[]) {
     std::cout << "largest bucket: " << largestBucket << std::endl;
 
 
-
-
-
     //TODO write group of compressedObjects (5000) to single file timestamp as name
-    //TODO save raw IPTuple for comparison
     std::cout << "writing" << std::endl;
 
     std::string outFileName = "./testfiles/out.bin";
@@ -202,11 +196,11 @@ int main(int argc, char* argv[]) {
         while (queueCompressed.pop(b)) {
             oa << *b;
             ++counter;
+            delete b;
         }
     }
 
-
-    //TODO read from file
+    // read from file
     std::vector<CompressedBucket> readData{};
     {
         std::ifstream ifs(outFileName);
@@ -219,7 +213,7 @@ int main(int argc, char* argv[]) {
     }
 
 
-    //TODO decompress
+    // decompress
     std::vector<std::vector<IPTuple>> decompressedTuples{};
 
     for (CompressedBucket b: readData) {
@@ -230,18 +224,7 @@ int main(int argc, char* argv[]) {
 
 
 
-    //TODO compare with @comparisonVector if decompression works
-
-//    std::cout<<comparisonVector.at(0).at(0).toString()<<std::endl;
-//    std::cout<<decompressedTuples.at(0).at(0).toString()<<std::endl;
-
-//    std::cout<<"elements are equal: "<< (comparisonVector.at(0).at(0) == decompressedTuples.at(0).at(0))<<std::endl;
-
-
-    bool vectorsAreEqual = std::equal(comparisonVector.at(0).begin(), comparisonVector.at(0).end(),
-                                      decompressedTuples.at(0).begin());
-    std::cout << "comparison bucket count: " << comparisonVector.size() << " decompressed bucket count: " << decompressedTuples.size() << std::endl;
-    std::cout << "vectors are equal: " << vectorsAreEqual << std::endl;
+    // compare with comparisonVector if decompression works
 
     for (size_t i = 0; i < comparisonVector.size(); ++i) {
         for (size_t j = 0; j < comparisonVector.at(i).size(); ++j) {
@@ -252,26 +235,24 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    std::cout<<"if no comparisons were printed, vectors are equal\n";
 
 
 
-
-
-
-    // for comparison of compression
- /*   {
+/*
+    // for comparison with compression
+    {
         std::string outFileNameComp = "./testfiles/uncompressedOut.bin";
         std::ofstream ofs(outFileNameComp);
         boost::archive::binary_oarchive oa(ofs);
-        for (IPTuple t : comparisonVector) {
-            oa << t;
+        for (auto tv : comparisonVector) {
+            for(auto t: tv)
+                oa << t;
         }
     }
 */
-
-
     // print results
-    std::cout << "queueRaw empty: "         << queueRaw.empty() << std::endl;
+    std::cout << "\nqueueRaw empty: "         << queueRaw.empty() << std::endl;
     std::cout << "queueParsed empty: "      << queueParsed.empty() << std::endl;
     std::cout << "queueSorted empty: "      << queueSorted.empty() << std::endl;
     std::cout << "queueCompressed empty: "  << queueCompressed.empty() << std::endl;

@@ -60,7 +60,7 @@ struct Entry{
 
     uint32_t addr;
     bool isSrc;
-    u_int32_t timestamp_offset; //TODO check if unsigned is possible
+    uint32_t timestamp_offset;
 
     uint16_t portSrc;
     uint16_t portDst;
@@ -68,7 +68,7 @@ struct Entry{
 
     Entry() = default;
 
-    Entry(uint32_t v4Src, bool isSrc, u_int32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol)
+    Entry(uint32_t v4Src, bool isSrc, uint32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol)
             : addr(v4Src), isSrc(isSrc), timestamp_offset(timestampOffset), portSrc(portSrc), portDst(portDst),
               protocol(aProtocol) {}
 };
@@ -79,7 +79,7 @@ class CompressedBucket {
     //delta encoding for timestamp
 
     //what to do with protocol?
-    //what to do with
+    //what to do with port?
 
 private:
 
@@ -117,7 +117,7 @@ public:
     //assumes that all tuples added have one matching ipv4 address
     void add(IPTuple t) {
         if(!hasFirst) {
-            u_int64_t timestamp = (unsigned long) t.getTvSec() * 1000000 + t.getTvUsec();
+            u_int64_t timestamp = t.getTvSec() * 1000000 + t.getTvUsec();
             firstEntry = FirstEntry(
                     t.getV4Src(),
                     t.getV4Dst(),
@@ -131,20 +131,21 @@ public:
         else{
             if(!hasSecond){
                 //find out which ipaddress is the same (needed for decompression)
-                if(firstEntry.v4Src==t.getV4Src()) {
+                if(firstEntry.v4Src==t.getV4Src() || firstEntry.v4Src==t.getV4Dst()) { //this means that the src of the first element address is equal in all others
                     matchedBySrc = true;
                 }
-                else if(firstEntry.v4Dst == t.getV4Dst()) {
+                else {
                     matchedBySrc = false;
                 }
-                else{
-                    std::cout<<"no ip address is equal!"<<std::endl;
-                    return;
-                }
                 hasSecond = true;
+
+                //TODO remove asserts
+                if(matchedBySrc)
+                    assert(firstEntry.v4Src==t.getV4Src() || firstEntry.v4Src==t.getV4Dst());
+                else
+                    assert(firstEntry.v4Dst==t.getV4Src() || firstEntry.v4Dst==t.getV4Dst());
             }
             bool saveSrcAddr{}; //this means that the src addr of the new Object is different, therefore we need to save it
-
 
             //TODO simplify if else statement
             if(matchedBySrc) { //if we match by src we need to compare it to the src addr since src of the first object is always equal
@@ -154,7 +155,7 @@ public:
                     saveSrcAddr = true;
                 }else{
                     std::cout<<"nothing equal"<<std::endl;
-                    return;
+                    assert(false);
                 }
             }else{
                 if (t.getV4Src() == firstEntry.v4Dst) { //the src of the new object is equal to src therefore save dst
@@ -163,17 +164,19 @@ public:
                     saveSrcAddr = true;
                 }else{
                     std::cout<<"nothing equal"<<std::endl;
-                    return;
+                    assert(false);
                 }
             }
 
+            if(firstEntry.timestamp>(t.getTvSec() * 1000000 + t.getTvUsec())){
+                std::cout<<firstEntry.timestamp<<" "<<(t.getTvSec() * 1000000 + t.getTvUsec())<<std::endl;
+            }
+            assert(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())); //check that we dont get an overflow and an invalid offset
 
-            //saveSrcAddr = firstEntry.v4Src != t.getV4Src(); //when the src addresses differ dst must be equal and src needs to be saved (and therefore the saved address "saveSrcAddr")
+            uint32_t timestampOffset =  (t.getTvSec() * 1000000 + t.getTvUsec()) - firstEntry.timestamp;
 
-            //if(saveSrcAddr)
-            //    assert(firstEntry.v4Dst == t.getV4Src());
+            assert(timestampOffset<=4294967295); //check that the offset is smaller than max value of 32 bit datatype
 
-            uint32_t timestampOffset = (uint32_t) firstEntry.timestamp - (unsigned long) t.getTvSec() * 1000000 + t.getTvUsec();
             uint32_t ipAddr{};
             if(saveSrcAddr){
                 ipAddr = t.getV4Src();
@@ -198,8 +201,8 @@ public:
             return;
         }
         //make IPTuple from first element
-        uint64_t timestamp_sec = firstEntry.timestamp /1000000;
-        uint64_t timestamp_usec = firstEntry.timestamp%1000000;
+        uint64_t timestamp_sec =  firstEntry.timestamp / 1000000;
+        uint64_t timestamp_usec = firstEntry.timestamp % 1000000;
 
         IPTuple t{pcpp::IPv4Address(firstEntry.v4Src),
                   pcpp::IPv4Address(firstEntry.v4Dst),
@@ -210,6 +213,7 @@ public:
                   timestamp_usec};
 
         res.emplace_back(t);
+
         //make IPTuple from other elements
         for(Entry e : entries){
             uint32_t srcAddr{};
@@ -232,8 +236,8 @@ public:
                     dstAddr = e.addr;
                 }
             }
-            timestamp_sec = (firstEntry.timestamp+e.timestamp_offset) / 1000000;
-            timestamp_usec = firstEntry.timestamp+e.timestamp_offset % 1000000;
+            timestamp_sec =  (firstEntry.timestamp+e.timestamp_offset) / 1000000;
+            timestamp_usec = (firstEntry.timestamp+e.timestamp_offset) % 1000000;
 
             IPTuple x{
                 pcpp::IPv4Address(srcAddr),
