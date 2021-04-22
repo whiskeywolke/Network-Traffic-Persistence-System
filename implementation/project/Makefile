@@ -51,8 +51,8 @@ all: build run clean
 
 build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP)
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP)
+	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP) -ltbb
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) -ltbb
 
 buildDebug: #disabled compiler optimizations (-O0)
 	if [ ! -d "./build" ]; then   mkdir build; fi

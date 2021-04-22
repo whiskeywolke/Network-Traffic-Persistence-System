@@ -168,12 +168,16 @@ public:
                 }
             }
 
-            if(firstEntry.timestamp>(t.getTvSec() * 1000000 + t.getTvUsec())){
-                std::cout<<firstEntry.timestamp<<" "<<(t.getTvSec() * 1000000 + t.getTvUsec())<<std::endl;
-            }
-            assert(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())); //check that we dont get an overflow and an invalid offset
+  //          if(firstEntry.timestamp>(t.getTvSec() * 1000000 + t.getTvUsec())){
+  //              std::cout<<firstEntry.timestamp<<" "<<(t.getTvSec() * 1000000 + t.getTvUsec())<<std::endl;
+  //          }
+
+            //assert(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())); //check that we dont get an overflow and an invalid offset
 
             uint32_t timestampOffset =  (t.getTvSec() * 1000000 + t.getTvUsec()) - firstEntry.timestamp;
+            if(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())){
+                timestampOffset = 0; //in case the packets arrive out of order the offset will be set to 0 TODO set signed in as offset
+            }
 
             assert(timestampOffset<=4294967295); //check that the offset is smaller than max value of 32 bit datatype
 

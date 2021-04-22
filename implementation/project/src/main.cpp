@@ -7,7 +7,9 @@
 #include "RingBuffer/ThreadedQueue.h"
 #include "Reader/Reader.h"
 #include "Converter/Converter.h"
-#include "Model/Aggregate.h"
+#include "Model/Aggregate2.h"
+
+//#include "Model/Aggregate.h"
 #include "Model/CompressedBucket.h"
 
 #include <memory>
@@ -24,6 +26,7 @@ std::atomic<bool> aggregationFinished {false};
 std::atomic<bool> compressionFinished {false};
 std::atomic<bool> writingFinished {false};
 
+std::mutex print_mutex;
 
 std::string getPredefinedFilterAsString(){
     pcpp::ProtoFilter tcpProtocolFilter(pcpp::TCP);
@@ -45,7 +48,6 @@ std::string getPredefinedFilterAsString(){
     return res;
 }
 
-
 void readPcapFile(const std::string& fileName, boost::lockfree::queue<RawContainer*>* queue){
     Reader dev(fileName.c_str());
     if (!dev.open())
@@ -64,9 +66,12 @@ void readPcapFile(const std::string& fileName, boost::lockfree::queue<RawContain
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    std::cout << "reading duration: \t\t" << duration << " nanoseconds\n";
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "reading duration: \t\t" << duration << " nanoseconds\n";
 //    std::cout << "Handling time per packet: " << duration / dev.getParsedPackets() << "; Packets per second: "<<1000000000/(duration / dev.getParsedPackets() ) <<std::endl;
-    parsedPackets = dev.getParsedPackets();
+        parsedPackets = dev.getParsedPackets();
+    }
     readingFinished = true;
 }
 
@@ -93,16 +98,18 @@ void convert(boost::lockfree::queue<RawContainer*>* queue1, boost::lockfree::que
         }
         input = nullptr;
     }
-
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    std::cout << "conversion duration: \t" << duration << " nanoseconds\n";
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "conversion duration: \t" << duration << " nanoseconds\n";
+    }
     conversionFinished = true;
 }
 
 void aggregate(boost::lockfree::queue<IPTuple>* queue1, boost::lockfree::queue<SortedPackets*>* queue2){
-    Aggregate& b = Aggregate::getInstance();
-
+    Aggregate2& b = Aggregate2::getInstance();
+    b.setID();
 
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
@@ -110,7 +117,7 @@ void aggregate(boost::lockfree::queue<IPTuple>* queue1, boost::lockfree::queue<S
     while(!conversionFinished || !queue1->empty()){  //TODO checking if empty only makes sense with single thread
         IPTuple t;
         if(queue1->pop(t)){
-            b.add(t);
+            while(!b.add(t)){};
         }
         auto current_time = std::chrono::high_resolution_clock::now();
         if(std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 2 ){
@@ -121,14 +128,15 @@ void aggregate(boost::lockfree::queue<IPTuple>* queue1, boost::lockfree::queue<S
     }
     b.flush(queue2);
     aggregationFinished = true;
-
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
-
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
+    }
 }
 
-void compress(boost::lockfree::queue<SortedPackets*>* queue1, boost::lockfree::queue<CompressedBucket*>* queue2){
+void compress(boost::lockfree::queue<SortedPackets*>* queue1, boost::lockfree::queue<CompressedBucket*>* queue2) {
     int bucketCount = 0;
     int sum = 0;
     size_t largestBucket = 0;
@@ -157,13 +165,17 @@ void compress(boost::lockfree::queue<SortedPackets*>* queue1, boost::lockfree::q
     }
     compressionFinished = true;
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    std::cout << "compression duration: \t" << duration << " nanoseconds\n";
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "compression duration: \t" << duration << " nanoseconds\n";
 //    std::cout << "average packets per bucket: " << sum / bucketCount << std::endl;
 //    std::cout << "largest bucket: " << largestBucket << std::endl;
+
+    }
 }
 
-void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue){
+void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue) {
     //TODO write group of compressedObjects (5000) to single file timestamp as name
     std::string outFileName = "./testfiles/out.bin";
 
@@ -172,7 +184,7 @@ void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue){
         std::ofstream ofs(outFileName);
         boost::archive::binary_oarchive oa(ofs);
         CompressedBucket *b;
-        while(!queue->empty() || !compressionFinished) {
+        while (!queue->empty() || !compressionFinished) {
             if (queue->pop(b)) {
                 oa << *b;
                 delete b;
@@ -180,13 +192,17 @@ void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue){
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    std::cout << "writing duration: \t\t" << duration << " nanoseconds\n";
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "writing duration: \t\t" << duration << " nanoseconds\n";
+    }
 }
 
 int main(int argc, char* argv[]) {
-    std::string inFilename = "./testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
-//    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
+//    std::string inFilename = "./testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "./testfiles/example.pcap";
 //    std::string inFilename = "./testfiles/test3.pcap";
 //    std::string inFilename = "./testfiles/test4.pcap";
@@ -203,14 +219,36 @@ int main(int argc, char* argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
 
     std::thread th1(readPcapFile, std::ref(inFilename), &queueRaw);
+//    th1.join();
+
     std::thread th2(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+    std::thread th21(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+//    th2.join();
+//    th21.join();
+
     std::thread th3(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th31(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th32(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th33(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+//    th3.join();
+//    th31.join();
+//    th32.join();
+//    th33.join();
+
     std::thread th4(compress, &queueSorted, &queueCompressed);
+//    th4.join();
+
     std::thread th5(writeToFile, &queueCompressed);
+//    th5.join();
+
 
     th1.join();
     th2.join();
+    th21.join();
     th3.join();
+    th31.join();
+    th32.join();
+    th33.join();
     th4.join();
     th5.join();
 
