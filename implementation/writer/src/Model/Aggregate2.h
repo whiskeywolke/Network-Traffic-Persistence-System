@@ -48,7 +48,7 @@ public:
         //std::cout<<"set minID: "<< this->minId<<std::endl;
     }
 
-    bool add(IPTuple ipTuple){
+    bool add(const IPTuple& ipTuple){
         tbb::concurrent_hash_map<uint32_t, std::vector<IPTuple>>::accessor ac;
         //tbb::concurrent_unordered_map<uint32_t, std::vector<IPTuple>>::accessor ac;
         if(flushing){

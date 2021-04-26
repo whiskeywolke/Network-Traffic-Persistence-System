@@ -115,7 +115,7 @@ public:
     }
 
     //assumes that all tuples added have one matching ipv4 address
-    void add(IPTuple t) {
+    void add(const IPTuple& t) {
         if(!hasFirst) {
             u_int64_t timestamp = t.getTvSec() * 1000000 + t.getTvUsec();
             firstEntry = FirstEntry(

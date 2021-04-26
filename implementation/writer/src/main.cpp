@@ -177,7 +177,7 @@ void compress(boost::lockfree::queue<SortedPackets*>* queue1, boost::lockfree::q
 
 void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue) {
     //TODO write group of compressedObjects (5000) to single file timestamp as name
-    std::string outFileName = "./testfiles/out.bin";
+    std::string outFileName = "/home/ubuntu/testfiles/out.bin";
 
     auto start = std::chrono::high_resolution_clock::now();
     {
@@ -201,14 +201,13 @@ void writeToFile(boost::lockfree::queue<CompressedBucket*>* queue) {
 }
 
 int main(int argc, char* argv[]) {
-//    std::string inFilename = "./testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
-    std::string inFilename = "./testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
-//    std::string inFilename = "./testfiles/example.pcap";
-//    std::string inFilename = "./testfiles/test3.pcap";
-//    std::string inFilename = "./testfiles/test4.pcap";
-//    std::string inFilename = "./testfiles/test5.pcap"; //(3 packets)
-//    std::string inFilename = "./testfiles/test6.pcap";  // (1031565 packets) with payload
-
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
+//    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
+//    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
+//    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
+    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
     boost::lockfree::queue<RawContainer *> queueRaw{10000000};
     boost::lockfree::queue<IPTuple> queueParsed{10000000};
@@ -222,7 +221,7 @@ int main(int argc, char* argv[]) {
 //    th1.join();
 
     std::thread th2(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
-    std::thread th21(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+//    std::thread th21(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
 //    th2.join();
 //    th21.join();
 
@@ -244,7 +243,7 @@ int main(int argc, char* argv[]) {
 
     th1.join();
     th2.join();
-    th21.join();
+//    th21.join();
     th3.join();
     th31.join();
     th32.join();
