@@ -1,3 +1,7 @@
 /implementation/pcappp-test/build/
 /implementation/pcappp-test/testfiles/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap
 /implementation/pcappp-test/testfiles/testfiles/tuples.dump
+/implementation/writer/build/
+/implementation/writer/cmake-build-debug/
+/implementation/writer_v2/build/
+/implementation/writer_v2/cmake-build-debug/
