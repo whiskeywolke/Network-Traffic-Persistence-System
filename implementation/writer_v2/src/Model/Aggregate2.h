@@ -16,11 +16,6 @@
 #include <thread>
 #include <mutex>
 
-struct SortedPackets{
-    IPTuple* start;
-    size_t length;
-};
-
 class Aggregate2 {
 private:
     //std::map<uint32_t, std::vector<IPTuple>>map{}; //TODO make map threadsafe
