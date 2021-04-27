@@ -211,6 +211,13 @@ int main(int argc, char* argv[]) {
 
     auto start = std::chrono::high_resolution_clock::now();
 
+//for profiling call all functions sequential in main thread
+/*    readPcapFile(std::ref(inFilename), &queueRaw);
+    convert(&queueRaw, &queueParsed);
+    aggregateSingleThread(&queueParsed, &queueSorted);
+    compress(&queueSorted, &queueCompressed);
+*/
+
     std::thread th1(readPcapFile, std::ref(inFilename), &queueRaw);
 //    th1.join();
 
@@ -231,7 +238,7 @@ int main(int argc, char* argv[]) {
     std::thread th4(compress, &queueSorted, &queueCompressed);
 //    th4.join();
 
-    std::thread th5(writeToFile, &queueCompressed);
+//    std::thread th5(writeToFile, &queueCompressed);
 //    th5.join();
 
 
@@ -243,7 +250,7 @@ int main(int argc, char* argv[]) {
 //    th32.join();
 //    th33.join();
     th4.join();
-    th5.join();
+//    th5.join();
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();

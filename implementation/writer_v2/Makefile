@@ -45,9 +45,11 @@ BOOST_SERIALIZATION = -lboost_serialization
 #openMP flag (include both at compile time & link time to prevent unecessary warnings)
 OPENMP = -fopenmp
 # All Target
-.PHONY: all build run runSudo clean
+.PHONY: all build run runSudo clean buildProfile runProfile
 
 all: build run clean
+
+profile: buildProfile runProfile
 
 build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
@@ -57,8 +59,17 @@ build:
 buildDebug: #disabled compiler optimizations (-O0)
 	if [ ! -d "./build" ]; then   mkdir build; fi
 	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP) -O0
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) -O0
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) -ltbb -O0
 
+buildProfile:
+	if [ ! -d "./build" ]; then   mkdir build; fi
+	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o $(OPENMP) -pg
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) $(OPENMP) -ltbb -pg
+
+runProfile:
+	./build/a.out
+	if [ ! -d "./profileResults" ]; then   mkdir profileResults; fi
+	gprof ./build/a.out gmon.out  > profileResults/analysis.txt
 run:
 	./build/a.out
 
