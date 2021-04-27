@@ -18,15 +18,10 @@
 class AggregateST {
 private:
     tsl::robin_map<uint32_t, std::vector<IPTuple>>map{};
-    AggregateST() = default;;
 
 public:
 
-    static AggregateST& getInstance(){
-        static AggregateST _instance;
-        return _instance;
-    }
-
+    AggregateST() = default;;
     AggregateST(const AggregateST&)= delete;
     AggregateST& operator = (const AggregateST& )  = delete;
 

@@ -7,6 +7,12 @@
 
 #include "../Model/RawContainer.h"
 #include "../Model/IPTuple.h"
+#include <pcapplusplus/Packet.h>
+#include <pcapplusplus/IPv4Layer.h>
+#include <pcapplusplus/TcpLayer.h>
+#include <pcapplusplus/UdpLayer.h>
+#include <pcapplusplus/IcmpLayer.h>
+
 
 class Converter {
 public:

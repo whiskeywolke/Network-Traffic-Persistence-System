@@ -1,14 +1,11 @@
 #include "stdlib.h"
 #include <pcapplusplus/PcapFileDevice.h>
 #include <iostream>
-#include "Reader/Reader.h"
 #include "Converter/Converter.h"
 #include "ConcurrentQueue/concurrentqueue.h"
 
 #include "Model/CompressedBucket.h"
-//#include "Model/Aggregate.h"
 #include "Model/AggregateST.h"
-//#include "Model/Aggregate2.h"
 
 #include <memory>
 #include <thread>
@@ -104,7 +101,8 @@ void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue1, moodycamel::C
 }
 
 void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue2){
-    AggregateST& b = AggregateST::getInstance();
+    //AggregateST& b = AggregateST::getInstance();
+    AggregateST b{};
 
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
@@ -193,13 +191,13 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
 }
 
 int main(int argc, char* argv[]) {
-    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
-//    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
+    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
 
     moodycamel::ConcurrentQueue<pcpp::RawPacket>queueRaw(10000000);
@@ -222,35 +220,46 @@ int main(int argc, char* argv[]) {
 //    th1.join();
 
     std::thread th2(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
-//    std::thread th21(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+    std::thread th21(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+    std::thread th22(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
+//    std::thread th23(convert, &queueRaw, &queueParsed); //more than one converter thread reduces performance (synchronization overhead), probably system dependant
 //    th2.join();
 //    th21.join();
+//    th22.join();
+//    th23.join();
 
     std::thread th3(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th31(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th32(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th33(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th31(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th32(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th33(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
 //    th3.join();
 //    th31.join();
 //    th32.join();
 //    th33.join();
 
     std::thread th4(compress, &queueSorted, &queueCompressed);
+//    std::thread th41(compress, &queueSorted, &queueCompressed);
+//    std::thread th42(compress, &queueSorted, &queueCompressed);
+//    std::thread th43(compress, &queueSorted, &queueCompressed);
 //    th4.join();
+//    th41.join();
+//    th42.join();
+//    th43.join();
 
-//    std::thread th5(writeToFile, &queueCompressed);
+    std::thread th5(writeToFile, &queueCompressed);
 //    th5.join();
 
 
     th1.join();
     th2.join();
-//    th21.join();
+    th21.join();
+    th22.join();
     th3.join();
-//    th31.join();
-//    th32.join();
-//    th33.join();
+    th31.join();
+    th32.join();
+    th33.join();
     th4.join();
-//    th5.join();
+    th5.join();
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
