@@ -127,7 +127,12 @@ void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodyca
 
 void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodycamel::ConcurrentQueue<CompressedBucket>* queue2) {
     auto start = std::chrono::high_resolution_clock::now();
-
+    int32_t maxmaxOffset = 0;
+    int32_t minminOffset = 0;
+    uint64_t maxObservedPorts = 0;
+    uint64_t observedPorts = 0;
+    uint64_t portcountmorethan = 0;
+    int bucketcount = 0;
     while (!aggregationFinished || queue1->size_approx() != 0) {
         std::vector<IPTuple> sorted;
         if (queue1->try_dequeue(sorted)) {
@@ -145,6 +150,20 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
 */
             queue2->enqueue(bucket);
 //            ++bucketCount;
+            if(bucket.getMaxOffset() > maxmaxOffset){
+                maxmaxOffset = bucket.getMaxOffset();
+            }
+            if(bucket.getMinOffset() < minminOffset){
+                minminOffset = bucket.getMinOffset();
+            }
+            if(bucket.portCount() > maxObservedPorts){
+                maxObservedPorts = bucket.portCount();
+            }
+            if(bucket.portCount() > 255){
+                ++portcountmorethan;
+            }
+            ++bucketcount;
+            observedPorts += bucket.portCount();
         }
     }
     compressionFinished = true;
@@ -153,6 +172,13 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
     {
         std::lock_guard<std::mutex> lock(print_mutex);
         std::cout << "compression duration: \t" << duration << " nanoseconds\n";
+        std::cout<<"max offset: "<<maxmaxOffset<<std::endl;
+        std::cout<<"min offset: "<<minminOffset<<std::endl;
+        std::cout<<"port count: "<<maxObservedPorts<<std::endl;
+        std::cout<<"bucket count: "<<bucketcount<<std::endl;
+        std::cout<<"bucket count more than: "<<portcountmorethan<<std::endl;
+        std::cout<<"bucket count more than%: "<<100.0*(((double)portcountmorethan)/bucketcount)<<std::endl;
+        std::cout<<"average port count: "<<observedPorts/bucketcount<<std::endl;
     }
 }
 
@@ -206,7 +232,6 @@ int main(int argc, char* argv[]) {
         std::cout<<"REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: "<<std::thread::hardware_concurrency()
         <<", requested: "<<(READER_THREADS+CONVERTER_THREADS+AGGREGATOR_THREADS+COMPRESSOR_THREADS+WRITER_THREADS)<<")"<<std::endl;
     }
-
 
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};

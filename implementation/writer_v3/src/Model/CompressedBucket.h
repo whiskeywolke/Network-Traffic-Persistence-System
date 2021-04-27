@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include "IPTuple.h"
+#include "../HashMap/robin_map.h"
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -60,7 +61,10 @@ struct Entry{
 
     uint32_t addr;
     bool isSrc;
-    uint32_t timestamp_offset;
+    int32_t timestamp_offset; //needs to be at least int32 -> max pos observed offset = 1.050.534.429, min ~-1.000.000 this means cutting negative offset would not bring any meaningful improvement
+
+    //max observed ports 9000 (14 bits)per bucket TODO add port into port with bitshift (nope dont do that)
+    //less than 1% of buckets have more than 255 ports -> shrink ports to uint8_t with dictionary encoding
 
     uint16_t portSrc;
     uint16_t portDst;
@@ -68,7 +72,7 @@ struct Entry{
 
     Entry() = default;
 
-    Entry(uint32_t v4Src, bool isSrc, uint32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol)
+    Entry(uint32_t v4Src, bool isSrc, int32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol)
             : addr(v4Src), isSrc(isSrc), timestamp_offset(timestampOffset), portSrc(portSrc), portDst(portDst),
               protocol(aProtocol) {}
 };
@@ -103,6 +107,11 @@ private:
     bool hasSecond;
     bool matchedBySrc;
 
+    //TODO remove temporary observation helpers
+    int32_t maxOffset = 0;
+    int32_t minOffset = 0;
+    tsl::robin_map<int32_t , int>map{};
+    //////////////
 //    CompressedBucket() = delete;
 
 public:
@@ -115,6 +124,7 @@ public:
     }
 
     //assumes that all tuples added have one matching ipv4 address
+    //todo make it return bool so if it is full(more than 255 ports) return false
     void add(const IPTuple& t) {
         if(!hasFirst) {
             u_int64_t timestamp = t.getTvSec() * 1000000 + t.getTvUsec();
@@ -173,14 +183,43 @@ public:
   //          }
 
             //assert(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())); //check that we dont get an overflow and an invalid offset
+//////////////
+            uint64_t a = firstEntry.timestamp;
+            uint64_t b = ((t.getTvSec() * 1000000 + t.getTvUsec()));
 
-            uint32_t timestampOffset =  (t.getTvSec() * 1000000 + t.getTvUsec()) - firstEntry.timestamp;
-            if(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())){
-                timestampOffset = 0; //in case the packets arrive out of order the offset will be set to 0 TODO set signed in as offset
+            if(b>a && (b-a) > 0x7FFFFFFF){
+                std::cout<<((t.getTvSec() * 1000000 + t.getTvUsec())  - firstEntry.timestamp)<<std::endl;
+                assert(false);
+            }
+            if(b<a && (b-a) < 0x80000000){
+                std::cout<<((t.getTvSec() * 1000000 + t.getTvUsec())  - firstEntry.timestamp)<<std::endl;
+                assert(false);
             }
 
-            assert(timestampOffset<=4294967295); //check that the offset is smaller than max value of 32 bit datatype
+            //count ports
+            if(map.find(t.getPortDst()) == map.end()){
+                auto e =  std::pair<int32_t ,int>(t.getPortDst(), 0);
+                map.insert(e);
+            }
+            if(map.find(t.getPortSrc()) == map.end()){
+                auto e =  std::pair<int32_t ,int>(t.getPortSrc(), 0);
+                map.insert(e);
+            }
 
+            int32_t timestampOffset =  (t.getTvSec() * 1000000 + t.getTvUsec()) - firstEntry.timestamp; //TODO determine timeunit of offset (nanoseconds?, should be microseconds)
+   /*         if(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())){
+                timestampOffset = 0; //in case the packets arrive out of order the offset will be set to 0 TODO set signed in as offset
+                std::cout<<"hier"<<std::endl;
+            }
+*/
+            if(timestampOffset > maxOffset){
+                maxOffset = timestampOffset;
+            }
+            if(timestampOffset < minOffset){
+                minOffset = timestampOffset;
+            }
+            //assert(timestampOffset<=4294967295); //check that the offset is smaller than max value of 32 bit datatype
+//////////////
             uint32_t ipAddr{};
             if(saveSrcAddr){
                 ipAddr = t.getV4Src();
@@ -198,6 +237,17 @@ public:
                     );
             ++entryCount;
         }
+    }
+
+    int32_t getMaxOffset() const{
+        return maxOffset;
+    }
+    int32_t getMinOffset() const{
+        return minOffset;
+    }
+
+    size_t portCount() const{
+        return map.size();
     }
 
     void getData(std::vector<IPTuple>& res){
