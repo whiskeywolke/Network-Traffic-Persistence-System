@@ -7,7 +7,7 @@
 
 #include "Model/CompressedBucket.h"
 //#include "Model/Aggregate.h"
-#include "Model/Aggregate3.h"
+#include "Model/AggregateST.h"
 //#include "Model/Aggregate2.h"
 
 #include <memory>
@@ -103,28 +103,21 @@ void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue1, moodycamel::C
     }
 }
 
-void aggregate(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::ConcurrentQueue<tbb::concurrent_vector<IPTuple>>* queue2){
-    Aggregate3& b = Aggregate3::getInstance();
-    b.setID();
+void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue2){
+    AggregateST& b = AggregateST::getInstance();
 
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
     while(!conversionFinished  || queue1->size_approx() != 0){  //TODO checking if empty only makes sense with single thread
         IPTuple t;
         if(queue1->try_dequeue(t)){
-//            int i = 0;
-            while(!b.add(t)){
-//                if(i > 1)
-//                    std::cout<<"retry\n";
-//                ++i;
-            };
+            while(!b.add(t)){};
         }
         auto current_time = std::chrono::high_resolution_clock::now();
         if(std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 2 ){
             b.flush(queue2);
             time_since_flush = current_time;
         }
-
     }
     b.flush(queue2);
     aggregationFinished = true;
@@ -144,11 +137,11 @@ void aggregate(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::Concurr
     }
 }
 
-void compress(moodycamel::ConcurrentQueue<tbb::concurrent_vector<IPTuple>>* queue1, moodycamel::ConcurrentQueue<CompressedBucket>* queue2) {
+void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodycamel::ConcurrentQueue<CompressedBucket>* queue2) {
     auto start = std::chrono::high_resolution_clock::now();
 
     while (!aggregationFinished || queue1->size_approx() != 0) {
-        tbb::concurrent_vector<IPTuple> sorted;
+        std::vector<IPTuple> sorted;
         if (queue1->try_dequeue(sorted)) {
             CompressedBucket bucket;
             for (const IPTuple& ipTuple : sorted) {
@@ -200,8 +193,8 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
 }
 
 int main(int argc, char* argv[]) {
-//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
-    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
+    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
@@ -211,7 +204,7 @@ int main(int argc, char* argv[]) {
 
     moodycamel::ConcurrentQueue<pcpp::RawPacket>queueRaw(10000000);
     moodycamel::ConcurrentQueue<IPTuple>queueParsed(10000000);
-    moodycamel::ConcurrentQueue<tbb::concurrent_vector<IPTuple>>queueSorted(50000);
+    moodycamel::ConcurrentQueue<std::vector<IPTuple>>queueSorted(50000);
     moodycamel::ConcurrentQueue<CompressedBucket>queueCompressed(50000);
 
 
@@ -226,10 +219,10 @@ int main(int argc, char* argv[]) {
 //    th2.join();
 //    th21.join();
 
-    std::thread th3(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th31(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th32(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
-//    std::thread th33(aggregate, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+    std::thread th3(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+//    std::thread th31(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+//    std::thread th32(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+//    std::thread th33(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
 //    th3.join();
 //    th31.join();
 //    th32.join();
