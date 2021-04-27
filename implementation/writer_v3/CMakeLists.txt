@@ -6,7 +6,6 @@ project(implementation)
 set(CMAKE_CXX_STANDARD 14)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
-
 include(cmake/FindPCAP.cmake)
 include(GNUInstallDirs)
 find_package(PCAP REQUIRED)
@@ -27,7 +26,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test src/main.cpp src/Model/IPTuple.h src/Converter/Converter.h src/Model/RawContainer.h  src/Model/AggregateST.h src/Model/CompressedBucket.h src/)
+add_executable(pcappp_test src/main.cpp src/Model/IPTuple.h src/Converter/Converter.h src/Model/AggregateST.h src/Model/CompressedBucket.h src/)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 

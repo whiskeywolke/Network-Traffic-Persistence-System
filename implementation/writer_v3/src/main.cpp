@@ -1,4 +1,4 @@
-#include "stdlib.h"
+#include <cstdlib>
 #include <pcapplusplus/PcapFileDevice.h>
 #include <iostream>
 #include "Converter/Converter.h"
@@ -10,7 +10,6 @@
 #include <memory>
 #include <thread>
 
-#include <boost/lockfree/queue.hpp>
 #include <fstream>
 #include <mutex>
 
@@ -101,7 +100,6 @@ void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue1, moodycamel::C
 }
 
 void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue2){
-    //AggregateST& b = AggregateST::getInstance();
     AggregateST b{};
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -120,18 +118,10 @@ void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodyca
     b.flush(queue2);
     aggregationFinished = true;
     auto end = std::chrono::high_resolution_clock::now();
-//    auto start2 = std::chrono::high_resolution_clock::now();
-
-//    b.flush(queue2);
-//    auto end2 = std::chrono::high_resolution_clock::now();
-
-//    auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start2).count();
-
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     {
         std::lock_guard<std::mutex> lock(print_mutex);
         std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
-//        std::cout << "flushing duration: \t\t" << duration2 << " nanoseconds\n";
     }
 }
 
@@ -212,6 +202,11 @@ int main(int argc, char* argv[]) {
 //    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
 //    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
+    if((READER_THREADS+CONVERTER_THREADS+AGGREGATOR_THREADS+COMPRESSOR_THREADS+WRITER_THREADS)>std::thread::hardware_concurrency()){
+        std::cout<<"REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: "<<std::thread::hardware_concurrency()
+        <<", requested: "<<(READER_THREADS+CONVERTER_THREADS+AGGREGATOR_THREADS+COMPRESSOR_THREADS+WRITER_THREADS)<<")"<<std::endl;
+    }
+
 
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};
@@ -286,5 +281,12 @@ int main(int argc, char* argv[]) {
     std::cout << "queueSorted size: "      << queueSorted.size_approx() << std::endl;
     std::cout << "queueCompressed size: "  << queueCompressed.size_approx() << std::endl;
 
+    /*
+    //check that no packets have been left
+    assert(queueRaw.size_approx() == 0);
+    assert(queueParsed.size_approx() == 0);
+    assert(queueSorted.size_approx() == 0);
+    assert(queueCompressed.size_approx() == 0);
+    */
     return 0;
 }
