@@ -14,6 +14,7 @@
 #include <boost/serialization/vector.hpp>
 
 
+
 struct FirstEntry{
 
     friend class boost::serialization::access;
@@ -59,7 +60,8 @@ struct Entry{
         ar & timestamp_offset;
     }
 
-    uint32_t addr;
+    //uint32_t addr;
+    uint8_t addr;
     bool isSrc;
     int32_t timestamp_offset; //needs to be at least int32 -> max pos observed offset = 1.050.534.429, min ~-1.000.000 this means cutting negative offset would not bring any meaningful improvement
 
@@ -92,12 +94,16 @@ private:
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version)
     {
+        dict.shrink_to_fit();
+        entries.shrink_to_fit();
+
         ar & firstEntry;
         ar & entryCount;
         ar & hasFirst;
         ar & entries;
         ar & hasSecond;
         ar & matchedBySrc;
+        ar & dict;
     }
 
     FirstEntry firstEntry;
@@ -107,15 +113,23 @@ private:
     bool hasSecond;
     bool matchedBySrc;
 
+ //   typedef boost::bimap< uint32_t, uint16_t > dictionary; //save an ip adress - index relation (using bimap since either value must only exist once)
+ //   dictionary dict;
+    //is larger than 16 bit on purpose so we can check if it is larger than allowed and then return false on insert
+
+    //std::map<uint32_t, uint16_t>dict; //map with all ip - index pairs. note: needs to be swapped on decoding
+    std::vector<uint32_t>dict;
+
     //TODO remove temporary observation helpers
     int32_t maxOffset = 0;
     int32_t minOffset = 0;
-    tsl::robin_map<int32_t , int>map{};
+    tsl::robin_map<uint16_t , int>portMap{};
     //////////////
 //    CompressedBucket() = delete;
 
 public:
     CompressedBucket() {
+        firstEntry = FirstEntry();
         hasFirst = false;
         hasSecond = false;
         matchedBySrc = false;
@@ -125,7 +139,7 @@ public:
 
     //assumes that all tuples added have one matching ipv4 address
     //todo make it return bool so if it is full(more than 255 ports) return false
-    void add(const IPTuple& t) {
+    bool add(const IPTuple& t) {
         if(!hasFirst) {
             u_int64_t timestamp = t.getTvSec() * 1000000 + t.getTvUsec();
             firstEntry = FirstEntry(
@@ -197,14 +211,15 @@ public:
             }
 
             //count ports
-            if(map.find(t.getPortDst()) == map.end()){
-                auto e =  std::pair<int32_t ,int>(t.getPortDst(), 0);
-                map.insert(e);
+            if(portMap.find(t.getPortDst()) == portMap.end()){
+                auto e =  std::pair<uint16_t ,int>(t.getPortDst(), 0);
+                portMap.insert(e);
             }
-            if(map.find(t.getPortSrc()) == map.end()){
-                auto e =  std::pair<int32_t ,int>(t.getPortSrc(), 0);
-                map.insert(e);
+            if(portMap.find(t.getPortSrc()) == portMap.end()){
+                auto e =  std::pair<uint16_t ,int>(t.getPortSrc(), 0);
+                portMap.insert(e);
             }
+
 
             int32_t timestampOffset =  (t.getTvSec() * 1000000 + t.getTvUsec()) - firstEntry.timestamp; //TODO determine timeunit of offset (nanoseconds?, should be microseconds)
    /*         if(firstEntry.timestamp<=(t.getTvSec() * 1000000 + t.getTvUsec())){
@@ -227,8 +242,23 @@ public:
                 ipAddr = t.getV4Dst();
             }
 
+
+            //save ip address to vector of IpAddresses
+            uint32_t tempIndex = 0;
+            auto it = std::find(dict.begin(), dict.end(), ipAddr);
+            if(it != dict.end()){ //ipaddress already exists, find out index
+                tempIndex = it - dict.begin();
+                assert(tempIndex<256);
+            }else{ //new ip address, needs to be added to dict
+                if(dict.size() >= 256){ //already 256 ip adresses saved, therfore need to create new bucket
+                    return false;
+                }
+                dict.emplace_back(ipAddr);
+                tempIndex = dict.size()-1;
+            }
+
             entries.emplace_back(
-                    ipAddr,
+                    tempIndex,
                     saveSrcAddr,
                     timestampOffset,
                     t.getPortSrc(),
@@ -237,6 +267,7 @@ public:
                     );
             ++entryCount;
         }
+        return true;
     }
 
     int32_t getMaxOffset() const{
@@ -247,7 +278,11 @@ public:
     }
 
     size_t portCount() const{
-        return map.size();
+        return portMap.size();
+    }
+
+    size_t ipCount() const{
+        return dict.size();
     }
 
     void getData(std::vector<IPTuple>& res){

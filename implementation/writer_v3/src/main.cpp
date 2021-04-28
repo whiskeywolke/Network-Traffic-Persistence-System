@@ -127,18 +127,30 @@ void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodyca
 
 void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodycamel::ConcurrentQueue<CompressedBucket>* queue2) {
     auto start = std::chrono::high_resolution_clock::now();
-    int32_t maxmaxOffset = 0;
+/*    int32_t maxmaxOffset = 0;
     int32_t minminOffset = 0;
     uint64_t maxObservedPorts = 0;
     uint64_t observedPorts = 0;
     uint64_t portcountmorethan = 0;
+    uint64_t maxObservedIPs = 0;
+    uint64_t observerdIPs = 0;
+    uint64_t ipcountmorethan = 0;
     int bucketcount = 0;
+*/
     while (!aggregationFinished || queue1->size_approx() != 0) {
         std::vector<IPTuple> sorted;
         if (queue1->try_dequeue(sorted)) {
             CompressedBucket bucket;
             for (const IPTuple& ipTuple : sorted) {
-                bucket.add(ipTuple);
+                if(!bucket.add(ipTuple)){
+                    //now bucket is full replace with new one
+                    queue2->enqueue(bucket);
+                    bucket = CompressedBucket();
+//                    std::cout<<"bucket is full"<<std::endl;
+//                    ++ipcountmorethan;
+
+                }
+
             }
             /*
             int amount = sorted.size_approx();
@@ -150,7 +162,7 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
 */
             queue2->enqueue(bucket);
 //            ++bucketCount;
-            if(bucket.getMaxOffset() > maxmaxOffset){
+/*            if(bucket.getMaxOffset() > maxmaxOffset){
                 maxmaxOffset = bucket.getMaxOffset();
             }
             if(bucket.getMinOffset() < minminOffset){
@@ -162,8 +174,17 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
             if(bucket.portCount() > 255){
                 ++portcountmorethan;
             }
+            if(bucket.ipCount() > maxObservedIPs){
+                maxObservedIPs = bucket.ipCount();
+            }
+//            if(bucket.ipCount() >= 255){
+//                ++ipcountmorethan;
+//            }
+
             ++bucketcount;
             observedPorts += bucket.portCount();
+            observerdIPs += bucket.ipCount();
+*/
         }
     }
     compressionFinished = true;
@@ -172,13 +193,20 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
     {
         std::lock_guard<std::mutex> lock(print_mutex);
         std::cout << "compression duration: \t" << duration << " nanoseconds\n";
-        std::cout<<"max offset: "<<maxmaxOffset<<std::endl;
+/*        std::cout<<"max offset: "<<maxmaxOffset<<std::endl;
         std::cout<<"min offset: "<<minminOffset<<std::endl;
-        std::cout<<"port count: "<<maxObservedPorts<<std::endl;
         std::cout<<"bucket count: "<<bucketcount<<std::endl;
-        std::cout<<"bucket count more than: "<<portcountmorethan<<std::endl;
-        std::cout<<"bucket count more than%: "<<100.0*(((double)portcountmorethan)/bucketcount)<<std::endl;
+        std::cout<<"max port count: "<<maxObservedPorts<<std::endl;
+        std::cout<<"port count more than: "<<portcountmorethan<<std::endl;
+        std::cout<<"port count more than%: "<<100.0*(((double)portcountmorethan)/bucketcount)<<std::endl;
         std::cout<<"average port count: "<<observedPorts/bucketcount<<std::endl;
+        std::cout<<"max ip count: "<<maxObservedIPs<<std::endl;
+        std::cout<<"ip count more than: "<<ipcountmorethan<<std::endl;
+        std::cout<<"ip count more than%: "<<100.0*(((double)ipcountmorethan)/bucketcount)<<std::endl;
+        std::cout<<"average ip count: "<<observerdIPs/bucketcount<<std::endl;
+*/
+
+
     }
 }
 
