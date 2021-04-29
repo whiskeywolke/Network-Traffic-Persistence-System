@@ -4,6 +4,10 @@
 #include "Converter/Converter.h"
 #include "ConcurrentQueue/concurrentqueue.h"
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+
 #include "Model/CompressedBucket.h"
 #include "Model/AggregateST.h"
 
@@ -225,6 +229,26 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
             }
         }
     }
+
+/*    std::ofstream ofs(outFileName, std::ios::binary);
+    {
+        boost::iostreams::filtering_ostreambuf fos;
+
+        // push the ofstream and the compressor
+        fos.push(boost::iostreams::gzip_compressor (boost::iostreams::gzip::best_speed));
+        fos.push(ofs);
+
+        // start the archive on the filtering buffer:
+        boost::archive::binary_oarchive bo(fos);
+        CompressedBucket b;
+        while (queue->size_approx() != 0 || !compressionFinished) {
+            if (queue->try_dequeue(b)) {
+                bo << b;
+            }
+        }
+    }
+*/
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 

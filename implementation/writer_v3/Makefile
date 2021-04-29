@@ -40,7 +40,7 @@ BOOST = /usr/include/boost
 # Boost build location
 BOOST_LIB = /usr/lib/x86_64-linux-gnu/
 # Boost serialization library  (filename excluding lib and .a)
-BOOST_SERIALIZATION = -lboost_serialization
+BOOST_SERIALIZATION = -lboost_serialization -lboost_iostreams
 
 #openMP flag (include both at compile time & link time to prevent unecessary warnings)
 OPENMP = -fopenmp
@@ -53,18 +53,18 @@ profile: buildProfile runProfile
 
 build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o  -ltbb
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) -ltbb
+	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
 
 buildDebug: #disabled compiler optimizations (-O0)
 	if [ ! -d "./build" ]; then   mkdir build; fi
 	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o  -O0
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)  -ltbb -O0
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -O0
 
 buildProfile:
 	if [ ! -d "./build" ]; then   mkdir build; fi
 	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o  -pg
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)  -ltbb -pg
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -pg
 
 runProfile:
 	./build/a.out
