@@ -9,7 +9,8 @@
 #include <boost/iostreams/filtering_streambuf.hpp>
 
 #include "Model/CompressedBucket.h"
-#include "Model/AggregateST.h"
+#include "Model/MetaBucket.h"
+#include "Model/SortST.h"
 
 #include <memory>
 #include <thread>
@@ -23,8 +24,9 @@ std::atomic<int> aggregatedPackets { 0};
 std::atomic<int> compressedPackets { 0};
 std::atomic<bool> readingFinished {false};
 std::atomic<bool> conversionFinished {false};
-std::atomic<bool> aggregationFinished {false};
+std::atomic<bool> sortingFinished {false};
 std::atomic<bool> compressionFinished {false};
+std::atomic<bool> aggregationFinished {false};
 std::atomic<bool> writingFinished {false};
 
 std::mutex print_mutex;
@@ -49,7 +51,7 @@ std::string getPredefinedFilterAsString(){
     return res;
 }
 
-void readPcapFile(const std::string& fileName, moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue){
+void readPcapFile(const std::string& fileName, moodycamel::ConcurrentQueue<pcpp::RawPacket>* outQueue){
     pcpp::IFileReaderDevice* reader =  pcpp::IFileReaderDevice::getReader(fileName.c_str());
 
     if (reader == NULL || !reader->open())
@@ -65,7 +67,7 @@ void readPcapFile(const std::string& fileName, moodycamel::ConcurrentQueue<pcpp:
     auto start = std::chrono::high_resolution_clock::now();
 
     while(reader->getNextPacket(temp)){
-        queue->enqueue(temp);
+        outQueue->enqueue(temp);
     }
     readingFinished = true;
 
@@ -81,16 +83,16 @@ void readPcapFile(const std::string& fileName, moodycamel::ConcurrentQueue<pcpp:
     }
 }
 
-void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue1, moodycamel::ConcurrentQueue<IPTuple>* queue2){
+void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* inQueue, moodycamel::ConcurrentQueue<IPTuple>* outQueue){
     pcpp::RawPacket input;
     IPTuple ipTuple;
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    while(!readingFinished || queue1->size_approx() != 0){
-        if(queue1->try_dequeue(input)) {
+    while(!readingFinished || inQueue->size_approx() != 0){
+        if(inQueue->try_dequeue(input)) {
             if (Converter::convert(input, ipTuple)) {
-                queue2->enqueue(ipTuple);
+                outQueue->enqueue(ipTuple);
             }
         }
     }
@@ -103,33 +105,33 @@ void convert(moodycamel::ConcurrentQueue<pcpp::RawPacket>* queue1, moodycamel::C
     }
 }
 
-void aggregateSingleThread(moodycamel::ConcurrentQueue<IPTuple>* queue1, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue2){
-    AggregateST b{};
+void sortSingleThread(moodycamel::ConcurrentQueue<IPTuple>* inQueue, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* outQueue){
+    SortST b{};
 
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
-    while(!conversionFinished  || queue1->size_approx() != 0){  //TODO checking if empty only makes sense with single thread
+    while(!conversionFinished || inQueue->size_approx() != 0){  //TODO checking if empty only makes sense with single thread
         IPTuple t;
-        if(queue1->try_dequeue(t)){
+        if(inQueue->try_dequeue(t)){
             while(!b.add(t)){};
         }
         auto current_time = std::chrono::high_resolution_clock::now();
         if(std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 2 ){
-            b.flush(queue2);
+            b.flush(outQueue);
             time_since_flush = current_time;
         }
     }
-    b.flush(queue2);
-    aggregationFinished = true;
+    b.flush(outQueue);
+    sortingFinished = true;
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     {
         std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
+        std::cout << "sorting duration: \t\t" << duration << " nanoseconds\n";
     }
 }
 
-void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodycamel::ConcurrentQueue<CompressedBucket>* queue2) {
+void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* inQueue, moodycamel::ConcurrentQueue<CompressedBucket>* outQueue) {
     auto start = std::chrono::high_resolution_clock::now();
 /*    int32_t maxmaxOffset = 0;
     int32_t minminOffset = 0;
@@ -141,14 +143,16 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
     uint64_t ipcountmorethan = 0;
     int bucketcount = 0;
 */
-    while (!aggregationFinished || queue1->size_approx() != 0) {
+    int counter = 0;
+    while (!sortingFinished || inQueue->size_approx() != 0) {
         std::vector<IPTuple> sorted;
-        if (queue1->try_dequeue(sorted)) {
+        if (inQueue->try_dequeue(sorted)) {
             CompressedBucket bucket;
             for (const IPTuple& ipTuple : sorted) {
                 if(!bucket.add(ipTuple)){
                     //now bucket is full replace with new one
-                    queue2->enqueue(bucket);
+                    outQueue->enqueue(bucket);
+                    ++counter;
                     bucket = CompressedBucket();
 //                    std::cout<<"bucket is full"<<std::endl;
 //                    ++ipcountmorethan;
@@ -164,7 +168,10 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
                 bucket.add(t[i]);
             }
 */
-            queue2->enqueue(bucket);
+            if(bucket.getHasFirst()) { //check if bucket is not empty
+                outQueue->enqueue(bucket);
+                ++counter;
+            }
 //            ++bucketCount;
 /*            if(bucket.getMaxOffset() > maxmaxOffset){
                 maxmaxOffset = bucket.getMaxOffset();
@@ -197,6 +204,7 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
     {
         std::lock_guard<std::mutex> lock(print_mutex);
         std::cout << "compression duration: \t" << duration << " nanoseconds\n";
+        std::cout << "compression outqueue: \t" << counter << "\n";
 /*        std::cout<<"max offset: "<<maxmaxOffset<<std::endl;
         std::cout<<"min offset: "<<minminOffset<<std::endl;
         std::cout<<"bucket count: "<<bucketcount<<std::endl;
@@ -214,23 +222,68 @@ void compress(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue1, moodyca
     }
 }
 
-void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
-    //TODO write group of compressedObjects (5000) to single file timestamp as name
-    std::string outFileName = "/home/ubuntu/testfiles/out.bin";
-
+void aggregate(moodycamel::ConcurrentQueue<CompressedBucket>* inQueue, moodycamel::ConcurrentQueue<MetaBucket>* outQueue){
     auto start = std::chrono::high_resolution_clock::now();
-    {
-        std::ofstream ofs(outFileName);
-        boost::archive::binary_oarchive oa(ofs);
+
+    int counter = 0;
+    int invalidcounter = 0;
+
+    MetaBucket meta{};
+    auto metaLifetime = std::chrono::high_resolution_clock::now();
+    while(!compressionFinished || inQueue->size_approx() != 0){  //TODO checking if empty only makes sense with single thread
         CompressedBucket b;
-        while (queue->size_approx() != 0 || !compressionFinished) {
-            if (queue->try_dequeue(b)) {
+        if(inQueue->try_dequeue(b)){
+            if(!b.getHasFirst())
+                ++invalidcounter;
+            ++counter;
+            if(!meta.add(b)){ //metabucket is full
+                if(outQueue->enqueue(meta)) {
+                    //std::cout<<meta.getFileName()<<std::endl;
+                    meta = MetaBucket();
+                    metaLifetime = std::chrono::high_resolution_clock::now();
+                }
+            }
+            auto current_time = std::chrono::high_resolution_clock::now();
+            if(std::chrono::duration_cast<std::chrono::seconds>(current_time - metaLifetime).count() >= 10 ){ //metabucket lives already to long
+                if(outQueue->enqueue(meta)) {
+                    std::cout<<meta.getFileName()<<std::endl;
+                    meta = MetaBucket();
+                    metaLifetime = current_time;
+                }
+            }
+        }
+    }
+    if(meta.size() != 0) {
+        while (!outQueue->enqueue(meta)); //enqueue last metabucket
+    }
+    aggregationFinished = true;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
+        std::cout << "aggregation dequeue: \t" << counter<<std::endl;
+        std::cout << "aggregation invalid: \t" << invalidcounter<<std::endl;
+    }
+}
+
+void writeToFile(moodycamel::ConcurrentQueue<MetaBucket>* inQueue) {
+    //TODO write group of compressedObjects (5000) to single file timestamp as name
+    std::string outFilePath = "/home/ubuntu/testfiles/dir/";
+    auto start = std::chrono::high_resolution_clock::now();
+   {
+        MetaBucket b;
+        while (!aggregationFinished || inQueue->size_approx() != 0) {
+            if (inQueue->try_dequeue(b)) {
+                std::string outFileName = outFilePath + b.getFileName() + ".bin";
+                std::ofstream ofs(outFileName);
+                boost::archive::binary_oarchive oa(ofs);
                 oa << b;
             }
         }
     }
-
-/*    std::ofstream ofs(outFileName, std::ios::binary);
+/*
+    std::ofstream ofs(outFileName, std::ios::binary);
     {
         boost::iostreams::filtering_ostreambuf fos;
 
@@ -240,15 +293,15 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
 
         // start the archive on the filtering buffer:
         boost::archive::binary_oarchive bo(fos);
-        CompressedBucket b;
-        while (queue->size_approx() != 0 || !compressionFinished) {
-            if (queue->try_dequeue(b)) {
+        MetaBucket b;
+        while (inQueue->size_approx() != 0 || !compressionFinished) {
+            if (inQueue->try_dequeue(b)) {
                 bo << b;
             }
         }
     }
-*/
 
+*/
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
@@ -266,10 +319,11 @@ inline void join(std::vector<std::thread>& vector) {
 
 #define READER_THREADS 1
 #define CONVERTER_THREADS 3
-#define AGGREGATOR_THREADS 4
+#define SORTER_THREADS 4
 #define COMPRESSOR_THREADS 1
+#define AGGREGATOR_THREADS 1
 #define WRITER_THREADS 1
-#define SEQUENTIAL false
+#define SEQUENTIAL false //TODO find out why packets are lost in compression if sequential
 
 int main(int argc, char* argv[]) {
 //    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
@@ -280,33 +334,37 @@ int main(int argc, char* argv[]) {
 //    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
 //    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
-    if((READER_THREADS+CONVERTER_THREADS+AGGREGATOR_THREADS+COMPRESSOR_THREADS+WRITER_THREADS)>std::thread::hardware_concurrency()){
-        std::cout<<"REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: "<<std::thread::hardware_concurrency()
-        <<", requested: "<<(READER_THREADS+CONVERTER_THREADS+AGGREGATOR_THREADS+COMPRESSOR_THREADS+WRITER_THREADS)<<")"<<std::endl;
+    if((READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) > std::thread::hardware_concurrency()){
+        std::cout << "REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: " << std::thread::hardware_concurrency()
+                  << ", requested: " << (READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) << ")" << std::endl;
     }
 
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};
-    std::vector<std::thread>aggregators{};
+    std::vector<std::thread>sorters{};
     std::vector<std::thread>compressors{};
+    std::vector<std::thread>aggregators{};
     std::vector<std::thread>writers{};
     readers.reserve(READER_THREADS);
     converters.reserve(CONVERTER_THREADS);
-    aggregators.reserve(AGGREGATOR_THREADS);
+    sorters.reserve(SORTER_THREADS);
     compressors.reserve(COMPRESSOR_THREADS);
+    aggregators.reserve(AGGREGATOR_THREADS);
     writers.reserve(WRITER_THREADS);
 
     moodycamel::ConcurrentQueue<pcpp::RawPacket>queueRaw(10000000);
     moodycamel::ConcurrentQueue<IPTuple>queueParsed(10000000);
     moodycamel::ConcurrentQueue<std::vector<IPTuple>>queueSorted(50000);
     moodycamel::ConcurrentQueue<CompressedBucket>queueCompressed(50000);
+    moodycamel::ConcurrentQueue<MetaBucket>queueFiles(50000);
+
 
     auto start = std::chrono::high_resolution_clock::now();
 
 //for profiling call all functions sequential in main thread
 /*    readPcapFile(std::ref(inFilename), &queueRaw);
     convert(&queueRaw, &queueParsed);
-    aggregateSingleThread(&queueParsed, &queueSorted);
+    sortSingleThread(&queueParsed, &queueSorted);
     compress(&queueSorted, &queueCompressed);
 */
 
@@ -321,26 +379,32 @@ int main(int argc, char* argv[]) {
     }
     if(SEQUENTIAL){join(converters);}
 
-    for(int i = 0; i < AGGREGATOR_THREADS; ++i){
-        aggregators.emplace_back(aggregateSingleThread, &queueParsed, &queueSorted);
+    for(int i = 0; i < SORTER_THREADS; ++i){
+        sorters.emplace_back(sortSingleThread, &queueParsed, &queueSorted);
     }
-    if(SEQUENTIAL){join(aggregators);}
+    if(SEQUENTIAL){join(sorters);}
 
     for(int i = 0; i < COMPRESSOR_THREADS; ++i){
         compressors.emplace_back(compress, &queueSorted, &queueCompressed);
     }
     if(SEQUENTIAL){join(compressors);}
 
+    for(int i = 0; i < AGGREGATOR_THREADS; ++i){
+        aggregators.emplace_back(aggregate, &queueCompressed, &queueFiles);
+    }
+    if(SEQUENTIAL){join(aggregators);}
+
     for(int i = 0; i < WRITER_THREADS; ++i){
-        writers.emplace_back(writeToFile, &queueCompressed);
+        writers.emplace_back(writeToFile, &queueFiles);
     }
     if(SEQUENTIAL){join(writers);}
 
     if(!SEQUENTIAL){
         join(readers);
         join(converters);
-        join(aggregators);
+        join(sorters);
         join(compressors);
+        join(aggregators);
         join(writers);
     }
 
@@ -357,6 +421,7 @@ int main(int argc, char* argv[]) {
     std::cout << "queueParsed size: "      << queueParsed.size_approx() << std::endl;
     std::cout << "queueSorted size: "      << queueSorted.size_approx() << std::endl;
     std::cout << "queueCompressed size: "  << queueCompressed.size_approx() << std::endl;
+    std::cout << "queueFiles size: "       << queueFiles.size_approx() << std::endl;
 
     /*
     //check that no packets have been left
@@ -364,6 +429,7 @@ int main(int argc, char* argv[]) {
     assert(queueParsed.size_approx() == 0);
     assert(queueSorted.size_approx() == 0);
     assert(queueCompressed.size_approx() == 0);
+    assert(queueFiles.size_approx() == 0);
     */
     return 0;
 }

@@ -2,8 +2,8 @@
 // Created by ubuntu on 19.04.21.
 //
 
-#ifndef IMPLEMENTATION_AGGREGATE_H
-#define IMPLEMENTATION_AGGREGATE_H
+#ifndef IMPLEMENTATION_SORT_H
+#define IMPLEMENTATION_SORT_H
 
 #include "IPTuple.h"
 #include <map>
@@ -15,15 +15,15 @@
 #include <tbb/concurrent_hash_map.h>
 //Singleton Pattern
 
-class AggregateST {
+class SortST {
 private:
     tsl::robin_map<uint32_t, std::vector<IPTuple>>map{};
 
 public:
 
-    AggregateST() = default;;
-    AggregateST(const AggregateST&)= delete;
-    AggregateST& operator = (const AggregateST& )  = delete;
+    SortST() = default;;
+    SortST(const SortST&)= delete;
+    SortST& operator = (const SortST& )  = delete;
 
     bool add(IPTuple ipTuple){
         if(map.find(ipTuple.getV4Src()) != map.end()){
@@ -49,4 +49,4 @@ public:
 };
 
 
-#endif //IMPLEMENTATION_AGGREGATE_H
+#endif //IMPLEMENTATION_SORT_H

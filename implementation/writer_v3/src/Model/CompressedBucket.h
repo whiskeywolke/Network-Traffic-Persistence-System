@@ -269,6 +269,9 @@ public:
         }
         return true;
     }
+    bool getHasFirst()const{
+        return hasFirst;
+    }
 
     int32_t getMaxOffset() const{
         return maxOffset;
@@ -283,6 +286,26 @@ public:
 
     size_t ipCount() const{
         return dict.size();
+    }
+    struct timeval getMinTimestamp() const {
+        timeval t{};
+        t.tv_sec =  (firstEntry.timestamp+minOffset) / 1000000;
+        t.tv_usec = (firstEntry.timestamp+minOffset) % 1000000;
+        return t;
+    }
+    struct timeval getMaxTimestamp() const{
+        timeval t{};
+        t.tv_sec =  (firstEntry.timestamp+maxOffset) / 1000000;
+        t.tv_usec = (firstEntry.timestamp+maxOffset) % 1000000;
+        return t;
+    }
+
+    uint64_t getMinTimestampAsInt() const{
+        return minOffset<0 ?  firstEntry.timestamp + minOffset : firstEntry.timestamp;
+    }
+
+    uint64_t getMaxTimestampAsInt() const{
+        return firstEntry.timestamp + maxOffset;
     }
 
     void getData(std::vector<IPTuple>& res){
