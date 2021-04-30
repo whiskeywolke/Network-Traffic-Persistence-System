@@ -40,11 +40,14 @@ public:
     }
 
     // in certain time interval write to queue
-    void flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue){ //queue of queues where each inner queue is sorted
+    void flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue){ //queue of vectors where each vector is sorted
         for (const auto& entry : map) {
             queue->enqueue(entry.second);
         }
         map.clear();
+    }
+    size_t size()const{
+        return map.size();
     }
 };
 
