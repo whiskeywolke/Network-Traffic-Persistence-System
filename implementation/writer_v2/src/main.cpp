@@ -177,7 +177,31 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
         std::ofstream ofs(outFileName);
         boost::archive::binary_oarchive oa(ofs);
         CompressedBucket b;
-        while (queue->size_approx() != 0 || !compressionFinished) {
+        while (queue->size_approx() != 0 || !conversionFinished) {
+            if (queue->try_dequeue(b)) {
+                oa << b;
+            }
+        }
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    {
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "writing duration: \t\t" << duration << " nanoseconds\n";
+    }
+}
+
+void writeToFile2(moodycamel::ConcurrentQueue<IPTuple>* queue) {
+    //TODO write group of compressedObjects (5000) to single file timestamp as name
+    std::string outFileName = "/home/ubuntu/testfiles/uncompressed-out.bin";
+
+    auto start = std::chrono::high_resolution_clock::now();
+    {
+        std::ofstream ofs(outFileName);
+        boost::archive::binary_oarchive oa(ofs);
+        IPTuple b;
+        while (queue->size_approx() != 0 || !conversionFinished) {
             if (queue->try_dequeue(b)) {
                 oa << b;
             }
@@ -193,13 +217,13 @@ void writeToFile(moodycamel::ConcurrentQueue<CompressedBucket>* queue) {
 }
 
 int main(int argc, char* argv[]) {
-    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
-//    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
+    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
 
     moodycamel::ConcurrentQueue<pcpp::RawPacket>queueRaw(10000000);
@@ -226,7 +250,7 @@ int main(int argc, char* argv[]) {
 //    th2.join();
 //    th21.join();
 
-    std::thread th3(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
+//    std::thread th3(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
 //    std::thread th31(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
 //    std::thread th32(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
 //    std::thread th33(aggregateSingleThread, &queueParsed, &queueSorted); //aggregation seems to be the bottleneck
@@ -235,21 +259,24 @@ int main(int argc, char* argv[]) {
 //    th32.join();
 //    th33.join();
 
-    std::thread th4(compress, &queueSorted, &queueCompressed);
+//    std::thread th4(compress, &queueSorted, &queueCompressed);
 //    th4.join();
 
 //    std::thread th5(writeToFile, &queueCompressed);
 //    th5.join();
 
+    std::thread th6(writeToFile2, &queueParsed); //aggregation seems to be the bottleneck
+
 
     th1.join();
     th2.join();
+    th6.join();
 //    th21.join();
-    th3.join();
+//    th3.join();
 //    th31.join();
 //    th32.join();
 //    th33.join();
-    th4.join();
+//    th4.join();
 //    th5.join();
 
     auto end = std::chrono::high_resolution_clock::now();

@@ -340,8 +340,8 @@ inline void join(std::vector<std::thread>& vector) {
 #define SORTER_THREADS 4
 #define COMPRESSOR_THREADS 1
 #define AGGREGATOR_THREADS 1
-#define WRITER_THREADS 1
-#define SEQUENTIAL true
+#define WRITER_THREADS 2
+#define SEQUENTIAL false
 
 //TODO merge compression & aggregation step
 
