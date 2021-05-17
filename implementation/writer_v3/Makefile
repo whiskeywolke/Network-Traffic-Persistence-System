@@ -79,7 +79,7 @@ writer_runProfile:
 	gprof ./build/writer/a.out gmon.out  > build/writerProfileResults/analysis.txt
 
 writer_run:
-	./build/writer/a.out -o $(WORKDIR) -fI 5
+	./build/writer/a.out -o $(WORKDIR) $(INPARAMS)
 
 writer_runSudo:  #for access to network interfaces for live capture
 	sudo -S ./build/writer/a.out
