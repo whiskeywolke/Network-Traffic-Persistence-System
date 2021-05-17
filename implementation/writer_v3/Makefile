@@ -45,38 +45,56 @@ BOOST_SERIALIZATION = -lboost_serialization -lboost_iostreams
 #openMP flag (include both at compile time & link time to prevent unecessary warnings)
 OPENMP = -fopenmp
 # All Target
-.PHONY: all build run runSudo clean buildProfile runProfile
+.PHONY: all writer_build writer_run writer_runSudo clean writer_buildProfile writer_runProfile reader_build reader_run
 
-all: build run clean
+all: writer_build writer_run writer_clean
 
-profile: buildProfile runProfile
+profile: writer_buildProfile writer_runProfile
 
-build:
+writer_build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
+	if [ ! -d "./build/writer" ]; then   mkdir build/writer; fi
+	g++ src/writer_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/writer/main.o
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/writer/a.out build/writer/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
 
-buildDebug: #disabled compiler optimizations (-O0)
+writer_buildDebug: #disabled compiler optimizations (-O0)
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o  -O0
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -O0
+	if [ ! -d "./build/writer" ]; then   mkdir build/writer; fi
+	g++ src/writer_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/writer/main.o  -O0
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/writer/a.out build/writer/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -O0
 
-buildProfile:
+writer_buildProfile:
 	if [ ! -d "./build" ]; then   mkdir build; fi
-	g++ src/main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/main.o  -pg
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/a.out build/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -pg
+	if [ ! -d "./build/writer" ]; then   mkdir build/writer; fi
+	g++ src/writer_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/writer/main.o  -pg
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/writer/a.out build/writer/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)   -pg
 
-runProfile:
-	./build/a.out
-	if [ ! -d "./profileResults" ]; then   mkdir profileResults; fi
-	gprof ./build/a.out gmon.out  > profileResults/analysis.txt
-run:
-	./build/a.out
+writer_runProfile:
+	./build/writer/a.out
+	if [ ! -d "./build/writerProfileResults" ]; then   mkdir build/writerProfileResults; fi
+	gprof ./build/writer/a.out gmon.out  > build/writerProfileResults/analysis.txt
 
-runSudo:  #for access to network interfaces
-	sudo -S ./build/a.out
+writer_run:
+	./build/writer/a.out
+
+writer_runSudo:  #for access to network interfaces for live capture
+	sudo -S ./build/writer/a.out
 
 # Clean Target
-clean:
-	rm ./build/main.o
-	rm ./build/a.out
+writer_clean:
+	rm ./build/writer/main.o
+	rm ./build/writer/a.out
+
+#######################
+reader_build:
+	if [ ! -d "./build" ]; then   mkdir build; fi
+	if [ ! -d "./build/reader" ]; then   mkdir build/reader; fi
+	g++ src/reader_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/reader/main.o
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/reader/a.out build/reader/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
+
+reader_run:
+	./build/reader/a.out
+
+reader_clean:
+	rm ./build/reader/main.o
+	rm ./build/reader/a.out

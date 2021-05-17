@@ -30,12 +30,10 @@ private:
 
     uint64_t minTimestamp;
     uint64_t maxTimestamp;
-    std::vector<CompressedBucket>storage{};
-
-
-
 
 public:
+    std::vector<CompressedBucket>storage{};
+
     MetaBucket(){
         assert(METABUCKETSIZE<storage.max_size());
         storage.reserve(METABUCKETSIZE);

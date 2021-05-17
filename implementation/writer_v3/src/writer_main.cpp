@@ -346,11 +346,11 @@ inline void join(std::vector<std::thread>& vector) {
 //TODO merge compression & aggregation step
 
 int main(int argc, char* argv[]) {
-    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
+//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
 //    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
-//    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
+    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
 //    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
 //    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
