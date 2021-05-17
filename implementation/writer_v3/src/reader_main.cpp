@@ -52,9 +52,16 @@ int main(int argc, char* argv[]) {
 //    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
     std::string filePath = "./";//default directory
-    if(argc >= 2){
-        filePath = argv[1];
+
+    for(int i = 1; i < argc; ++i){
+        if(strcmp(argv[i], "-i") == 0){ // input directory specified
+            filePath = argv[++i];
+            if(filePath.at(filePath.size()-1) != '/'){
+                filePath.append("/");
+            }
+        }
     }
+
     std::cout<<"Reading from directory: " + filePath<<std::endl;
 
     auto files = getFiles(filePath.c_str());

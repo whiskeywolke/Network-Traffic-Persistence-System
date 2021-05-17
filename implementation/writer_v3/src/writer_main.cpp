@@ -346,24 +346,51 @@ inline void join(std::vector<std::thread>& vector) {
 //TODO merge compression & aggregation step
 
 int main(int argc, char* argv[]) {
+
+    std::vector<std::string>inputFiles{
+            "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap", //6.7GB      (107555567 packets) (no payload)
+            "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap", //1.6GB      (27013768 packets)  (no payload)
+            "/home/ubuntu/testfiles/test6.pcap",  // (1031565 packets) with payload
+            "/home/ubuntu/testfiles/example.pcap",
+            "/home/ubuntu/testfiles/test3.pcap",
+            "/home/ubuntu/testfiles/test4.pcap",
+            "/home/ubuntu/testfiles/test5.pcap", //(3 packets)
+    };
 //    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
-//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirA.20180517-125910.UTC.anon.pcap"; //1.6GB      (27013768 packets)  (no payload)
-//    std::string inFilename = "/home/ubuntu/testfiles/example.pcap";
-//    std::string inFilename = "/home/ubuntu/testfiles/test3.pcap";
-    std::string inFilename = "/home/ubuntu/testfiles/test4.pcap";
-//    std::string inFilename = "/home/ubuntu/testfiles/test5.pcap"; //(3 packets)
-//    std::string inFilename = "/home/ubuntu/testfiles/test6.pcap";  // (1031565 packets) with payload
 
     if((READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) > std::thread::hardware_concurrency()){
         std::cout << "REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: " << std::thread::hardware_concurrency()
                   << ", requested: " << (READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) << ")" << std::endl;
     }
 
-    std::string outFilePath = "./"; //default directory
-    if(argc >= 2){
-        outFilePath = argv[1];
-    }
 
+
+    std::string outFilePath = "./"; //default directory
+    std::string inFilename;
+    bool file = false;
+    for(int i = 1; i < argc; ++i){
+        if(strcmp(argv[i], "-o") == 0){ // output directory specified
+            outFilePath = argv[++i];
+            if(outFilePath.at(outFilePath.size()-1) != '/'){
+                outFilePath.append("/");
+            }
+        }
+        if(strcmp(argv[i], "-fI") == 0){
+            inFilename = inputFiles.at(atoi(argv[++i]));
+            file = true;
+        }
+        if(strcmp(argv[i], "-f") == 0){
+            inFilename = argv[++i];
+            file = true;
+        }
+    }
+    std::cout<<"Writing to directory: " + outFilePath<<std::endl;
+    if(file) {
+        std::cout <<"Reading from file: "<<inFilename<<std::endl;
+    }else{
+        std::cout<<"no file specified"<<std::endl;
+        return 0;
+    }
 
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};
