@@ -45,6 +45,10 @@ BOOST_SERIALIZATION = -lboost_serialization -lboost_iostreams
 #openMP flag (include both at compile time & link time to prevent unecessary warnings)
 OPENMP = -fopenmp
 # All Target
+
+WORKDIR = $(HOME)/testfiles/dir17/
+
+
 .PHONY: all writer_build writer_run writer_runSudo clean writer_buildProfile writer_runProfile reader_build reader_run
 
 all: writer_build writer_run writer_clean
@@ -75,7 +79,7 @@ writer_runProfile:
 	gprof ./build/writer/a.out gmon.out  > build/writerProfileResults/analysis.txt
 
 writer_run:
-	./build/writer/a.out
+	./build/writer/a.out $(WORKDIR)
 
 writer_runSudo:  #for access to network interfaces for live capture
 	sudo -S ./build/writer/a.out
@@ -93,7 +97,7 @@ reader_build:
 	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/reader/a.out build/reader/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
 
 reader_run:
-	./build/reader/a.out
+	./build/reader/a.out $(WORKDIR)
 
 reader_clean:
 	rm ./build/reader/main.o

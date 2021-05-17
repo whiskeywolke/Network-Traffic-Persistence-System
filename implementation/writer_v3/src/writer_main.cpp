@@ -285,9 +285,9 @@ void aggregate(moodycamel::ConcurrentQueue<CompressedBucket>* inQueue, moodycame
     }
 }
 
-void writeToFile(moodycamel::ConcurrentQueue<MetaBucket>* inQueue) {
+void writeToFile(moodycamel::ConcurrentQueue<MetaBucket>* inQueue, std::string outFilePath) {
     //TODO write group of compressedObjects (5000) to single file timestamp as name
-    std::string outFilePath = "/home/ubuntu/testfiles/dir/";
+    //std::string outFilePath = "/home/ubuntu/testfiles/dir/";
     auto start = std::chrono::high_resolution_clock::now();
    {
         MetaBucket b;
@@ -359,6 +359,12 @@ int main(int argc, char* argv[]) {
                   << ", requested: " << (READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) << ")" << std::endl;
     }
 
+    std::string outFilePath = "./"; //default directory
+    if(argc >= 2){
+        outFilePath = argv[1];
+    }
+
+
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};
     std::vector<std::thread>sorters{};
@@ -415,7 +421,7 @@ int main(int argc, char* argv[]) {
     if(SEQUENTIAL){join(aggregators);}
 
     for(int i = 0; i < WRITER_THREADS; ++i){
-        writers.emplace_back(writeToFile, &queueFiles);
+        writers.emplace_back(writeToFile, &queueFiles, outFilePath);
     }
     if(SEQUENTIAL){join(writers);}
 
