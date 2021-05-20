@@ -317,6 +317,10 @@ public:
         return this->dict;
     }
 
+    size_t size(){
+        return hasFirst ? entries.size()+1 : 0;
+    }
+
     void getData(std::vector<IPTuple>& res){
         if(!hasFirst){
             return;

@@ -5,28 +5,17 @@
 #include "ConcurrentQueue/concurrentqueue.h"
 
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 
 #include "Model/CompressedBucket.h"
 #include "Model/MetaBucket.h"
-#include "Model/SortST.h"
 
-#include <memory>
-#include <thread>
 
 #include <dirent.h>
 
 #include <fstream>
 #include <mutex>
 
-
-#include <pcapplusplus/IPv4Layer.h>
-#include <pcapplusplus/UdpLayer.h>
-#include <pcapplusplus/TcpLayer.h>
-#include <pcapplusplus/IcmpLayer.h>
-#include <pcapplusplus/EthLayer.h>
-#include <pcapplusplus/RawPacket.h>
 
 std::vector<std::string> getFiles(const char *path) {
     struct dirent *entry;
@@ -202,6 +191,8 @@ int main(int argc, char* argv[]) {
         compressedBuckets.insert(compressedBuckets.end(), m.storage.begin(), m.storage.end());
     }
 
+    std::cout<<"compressedBuckets.size() "<<compressedBuckets.size()<<std::endl;
+
     std::vector<IPTuple>tuples{};
 
     for(auto c : compressedBuckets){
@@ -212,6 +203,7 @@ int main(int argc, char* argv[]) {
         if(it != dict.end()){
             std::cout<<"dict contains 0"<<std::endl;
         }*/
+       //std::cout<<"bucket size "<<temp.size()<<std::endl;
         tuples.insert(tuples.end(), temp.begin(), temp.end());
     }
 
