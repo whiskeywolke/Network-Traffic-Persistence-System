@@ -1,20 +1,17 @@
 #include <cstdlib>
-#include <pcapplusplus/PcapFileDevice.h>
 #include <iostream>
-#include "Converter/Converter.h"
-#include "ConcurrentQueue/concurrentqueue.h"
+#include <dirent.h>
+#include <fstream>
+#include <mutex>
 
+#include <pcapplusplus/PcapFileDevice.h>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 
 #include "Model/CompressedBucket.h"
 #include "Model/MetaBucket.h"
-
-
-#include <dirent.h>
-
-#include <fstream>
-#include <mutex>
+#include "Converter/Converter.h"
+#include "ConcurrentQueue/concurrentqueue.h"
 
 
 std::vector<std::string> getFiles(const char *path) {
@@ -172,6 +169,9 @@ int main(int argc, char* argv[]) {
     std::cout<<"Reading from directory: " + filePath<<std::endl;
 
     auto files = getFiles(filePath.c_str());
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::vector<MetaBucket>metaBuckets{};
     {
         for(const auto& file : files) {
@@ -195,14 +195,9 @@ int main(int argc, char* argv[]) {
     for(auto c : compressedBuckets){
         std::vector<IPTuple>temp{};
         c.getData(temp);
-       /* auto  dict = c.getDict();
-        auto it = std::find(dict.begin(), dict.end(), 0);
-        if(it != dict.end()){
-            std::cout<<"dict contains 0"<<std::endl;
-        }*/
-       //std::cout<<"bucket size "<<temp.size()<<std::endl;
         tuples.insert(tuples.end(), temp.begin(), temp.end());
     }
+    auto end1 = std::chrono::high_resolution_clock::now();
 
     std::cout<<"tuples size:" <<tuples.size()<<std::endl;
 
@@ -250,6 +245,11 @@ int main(int argc, char* argv[]) {
         }
     }
     pcap_dump_close(dumper);
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto durationNoWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start).count();
+    auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
+    std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
+    std::cout <<   "duration w/ write: \t\t" << durationWrite << " nanoseconds\n";
 
     return 0;
 }

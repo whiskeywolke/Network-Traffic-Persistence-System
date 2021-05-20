@@ -1,22 +1,20 @@
 #include <cstdlib>
-#include <pcapplusplus/PcapFileDevice.h>
 #include <iostream>
-#include "Converter/Converter.h"
-#include "ConcurrentQueue/concurrentqueue.h"
+#include <memory>
+#include <thread>
+#include <fstream>
+#include <mutex>
 
 #include <boost/archive/binary_oarchive.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
+#include <pcapplusplus/PcapFileDevice.h>
 
 #include "Model/CompressedBucket.h"
 #include "Model/MetaBucket.h"
 #include "Model/SortST.h"
+#include "Converter/Converter.h"
+#include "ConcurrentQueue/concurrentqueue.h"
 
-#include <memory>
-#include <thread>
-
-#include <fstream>
-#include <mutex>
 
 std::atomic<unsigned int> readPackets{0};
 
@@ -33,8 +31,6 @@ std::atomic<long> compressionDuration{0};
 std::atomic<long> aggregationDuration{0};
 std::atomic<long> writingDuration{0};
 
-
-std::mutex print_mutex;
 std::mutex status_mutex;
 
 std::string getPredefinedFilterAsString(){

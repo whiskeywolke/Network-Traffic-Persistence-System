@@ -93,8 +93,8 @@ writer_clean:
 reader_build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
 	if [ ! -d "./build/reader" ]; then   mkdir build/reader; fi
-	g++ src/reader_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/reader/main.o
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/reader/a.out build/reader/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
+	g++ src/reader_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/reader/main.o -O3
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/reader/a.out build/reader/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) -O3
 
 reader_run:
 	./build/reader/a.out -i $(WORKDIR)
