@@ -45,10 +45,10 @@ public:
 
     IPTuple() {
         this->isValid = false;
- /*       portSrc = 0;
+/*        portSrc = 0;
         portDst = 0;
-        v4Src = pcpp::IPv4Address("127.0.0.1").toInt();
-        v4Dst = pcpp::IPv4Address("1.1.1.1").toInt();
+        v4Src = pcpp::IPv4Address("255.255.255.255").toInt();
+        v4Dst = pcpp::IPv4Address("255.255.255.255").toInt();
    */ }
 
     IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const uint64_t &tv_secI, const uint64_t &tv_usecI){

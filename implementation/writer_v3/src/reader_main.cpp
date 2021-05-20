@@ -207,6 +207,11 @@ int main(int argc, char* argv[]) {
     for(auto c : compressedBuckets){
         std::vector<IPTuple>temp{};
         c.getData(temp);
+       /* auto  dict = c.getDict();
+        auto it = std::find(dict.begin(), dict.end(), 0);
+        if(it != dict.end()){
+            std::cout<<"dict contains 0"<<std::endl;
+        }*/
         tuples.insert(tuples.end(), temp.begin(), temp.end());
     }
 
