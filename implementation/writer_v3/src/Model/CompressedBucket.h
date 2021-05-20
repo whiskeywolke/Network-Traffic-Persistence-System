@@ -312,6 +312,7 @@ public:
         if(!hasFirst){
             return;
         }
+        res.reserve(entries.size()+1);
         //make IPTuple from first element
         uint64_t timestamp_sec =  firstEntry.timestamp / 1000000;
         uint64_t timestamp_usec = firstEntry.timestamp % 1000000;
@@ -363,7 +364,6 @@ public:
             res.emplace_back(x);
         }
     }
-
 };
 
 
