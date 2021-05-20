@@ -58,8 +58,8 @@ profile: writer_buildProfile writer_runProfile
 writer_build:
 	if [ ! -d "./build" ]; then   mkdir build; fi
 	if [ ! -d "./build/writer" ]; then   mkdir build/writer; fi
-	g++ src/writer_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/writer/main.o
-	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/writer/a.out build/writer/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION)
+	g++ src/writer_main.cpp $(PCAPPP_BUILD_FLAGS) $(PCAPPP_INCLUDES) -L ${BOOST} -c -o build/writer/main.o -O3
+	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/writer/a.out build/writer/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) -O3
 
 writer_buildDebug: #disabled compiler optimizations (-O0)
 	if [ ! -d "./build" ]; then   mkdir build; fi

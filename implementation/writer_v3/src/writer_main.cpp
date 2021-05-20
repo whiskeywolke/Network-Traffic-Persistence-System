@@ -19,15 +19,20 @@
 #include <mutex>
 
 std::atomic<unsigned int> readPackets{0};
-std::atomic<unsigned int> convertedPackets {0};
-std::atomic<unsigned int> aggregatedPackets { 0};
-std::atomic<unsigned int> compressedPackets { 0};
+
 std::atomic<bool> readingFinished {false};
 std::atomic<bool> conversionFinished {false};
 std::atomic<bool> sortingFinished {false};
 std::atomic<bool> compressionFinished {false};
 std::atomic<bool> aggregationFinished {false};
-std::atomic<bool> writingFinished {false};
+
+std::atomic<long> readingDuration{0};
+std::atomic<long> conversionDuration{0};
+std::atomic<long> sortingDuration{0};
+std::atomic<long> compressionDuration{0};
+std::atomic<long> aggregationDuration{0};
+std::atomic<long> writingDuration{0};
+
 
 std::mutex print_mutex;
 std::mutex status_mutex;
@@ -60,16 +65,11 @@ void readPcapFile(const std::string& fileName, std::vector<bool>* status, int th
         printf("Error creating reader device\n");
         exit(1);
     }
-
     reader->setFilter(getPredefinedFilterAsString());
-
     pcpp::RawPacket temp;
-
     auto start = std::chrono::high_resolution_clock::now();
-
     while(reader->getNextPacket(temp)){
         outQueue->enqueue(temp);
-        ++readPackets;
     }
     {
         std::lock_guard<std::mutex> lock(status_mutex);
@@ -79,16 +79,10 @@ void readPcapFile(const std::string& fileName, std::vector<bool>* status, int th
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
-    {
-        std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "reading duration: \t\t" << duration << " nanoseconds\n";
-//    std::cout << "Handling time per packet: " << duration / dev.getParsedPackets() << "; Packets per second: "<<1000000000/(duration / dev.getParsedPackets() ) <<std::endl;
-        pcap_stat stats;
-        reader->getStatistics(stats);
-        assert(readPackets == stats.ps_recv);
-        //readPackets = stats.ps_recv;
-    }
+    readingDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    pcap_stat stats{};
+    reader->getStatistics(stats);
+    readPackets += stats.ps_recv;
 }
 
 void convert(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<pcpp::RawPacket>* inQueue, moodycamel::ConcurrentQueue<IPTuple>* outQueue){
@@ -112,12 +106,7 @@ void convert(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueu
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    {
-        std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "conversion duration: \t" << duration << " nanoseconds\n";
-//        std::cout << "conversion count: \t\t" << counter << " packets\n";
-    }
+    conversionDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
 void sortSingleThread(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<IPTuple>* inQueue, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* outQueue){
@@ -144,11 +133,7 @@ void sortSingleThread(std::vector<bool>* status, int threadID, moodycamel::Concu
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    {
-        std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "sorting duration: \t\t" << duration << " nanoseconds\n";
-    }
+    sortingDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
 void compress(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<std::vector<IPTuple>>* inQueue, moodycamel::ConcurrentQueue<CompressedBucket>* outQueue) {
@@ -179,11 +164,11 @@ void compress(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQue
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    compressionDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+/*
     {
         std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "compression duration: \t" << duration << " nanoseconds\n";
-/*        std::cout << "compression dequeue: \t" << dequeueCounter << "\n";
+        std::cout << "compression dequeue: \t" << dequeueCounter << "\n";
         std::cout << "compression enqueue: \t" << enqueueCounter << "\n";
         std::cout<<"max offset: "<<maxmaxOffset<<std::endl;
         std::cout<<"min offset: "<<minminOffset<<std::endl;
@@ -196,8 +181,9 @@ void compress(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQue
         std::cout<<"ip count more than: "<<ipcountmorethan<<std::endl;
         std::cout<<"ip count more than%: "<<100.0*(((double)ipcountmorethan)/bucketcount)<<std::endl;
         std::cout<<"average ip count: "<<observerdIPs/bucketcount<<std::endl;
-*/
+
     }
+*/
 }
 
 void aggregate(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<CompressedBucket>* inQueue, moodycamel::ConcurrentQueue<MetaBucket>* outQueue){
@@ -234,13 +220,7 @@ void aggregate(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQu
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    {
-        std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "aggregation duration: \t" << duration << " nanoseconds\n";
-//        std::cout << "aggregation dequeue: \t" << counter<<std::endl;
-//        std::cout << "aggregation out: \t" << outCounter << std::endl;
-    }
+    aggregationDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
 void writeToFile(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<MetaBucket>* inQueue, std::string outFilePath) {
@@ -257,11 +237,7 @@ void writeToFile(std::vector<bool>* status, int threadID, moodycamel::Concurrent
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    {
-        std::lock_guard<std::mutex> lock(print_mutex);
-        std::cout << "writing duration: \t\t" << duration << " nanoseconds\n";
-    }
+    writingDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
 inline void join(std::vector<std::thread>& vector) {
@@ -276,10 +252,8 @@ inline void join(std::vector<std::thread>& vector) {
 #define COMPRESSOR_THREADS 1
 #define AGGREGATOR_THREADS 1
 #define WRITER_THREADS 2
-#define SEQUENTIAL true
 
 //TODO merge compression & aggregation step
-
 int main(int argc, char* argv[]) {
 
     std::vector<std::string>inputFiles{
@@ -291,7 +265,6 @@ int main(int argc, char* argv[]) {
             "/home/ubuntu/testfiles/test4.pcap",
             "/home/ubuntu/testfiles/test5.pcap", //(3 packets)
     };
-//    std::string inFilename = "/home/ubuntu/testfiles/equinix-nyc.dirB.20180517-134900.UTC.anon.pcap"; //6.7GB      (107555567 packets) (no payload)
 
     if((READER_THREADS + CONVERTER_THREADS + SORTER_THREADS + COMPRESSOR_THREADS + AGGREGATOR_THREADS + WRITER_THREADS) > std::thread::hardware_concurrency()){
         std::cout << "REQUESTED MORE THREADS THAN SUPPORTED, PERFORMANCE MAY NOT BE OPTIMAL (supported: " << std::thread::hardware_concurrency()
@@ -301,6 +274,8 @@ int main(int argc, char* argv[]) {
     std::string outFilePath = "./"; //default directory
     std::string inFilename;
     bool file = false;
+    bool sequentialExecution = false;
+
     for(int i = 1; i < argc; ++i){
         if(strcmp(argv[i], "-o") == 0){ // output directory specified
             outFilePath = argv[++i];
@@ -308,7 +283,7 @@ int main(int argc, char* argv[]) {
                 outFilePath.append("/");
             }
         }
-        if(strcmp(argv[i], "-fI") == 0){
+        if(strcmp(argv[i], "-fI") == 0){ //using hardcoded predefined file
             inFilename = inputFiles.at(atoi(argv[++i]));
             file = true;
         }
@@ -316,14 +291,20 @@ int main(int argc, char* argv[]) {
             inFilename = argv[++i];
             file = true;
         }
+        if(strcmp(argv[i], "-s") == 0){
+            sequentialExecution = true;
+        }
     }
-    std::cout<<"Writing to directory: " + outFilePath<<std::endl;
+    if(sequentialExecution) {
+        std::cout << "WARNING: Running in sequential mode\n";
+    }
     if(file) {
-        std::cout <<"Reading from file: "<<inFilename<<std::endl;
+        std::cout <<"Reading from file: "<<inFilename<<"\n";
     }else{
-        std::cout<<"no file specified"<<std::endl;
+        std::cout<<"no file specified, exiting now\n";
         return 0;
     }
+    std::cout<<"Writing to directory: " + outFilePath<<"\n";
 
     std::vector<std::thread>readers{};
     std::vector<std::thread>converters{};
@@ -345,55 +326,53 @@ int main(int argc, char* argv[]) {
     std::vector<bool>aggregatorStatus(AGGREGATOR_THREADS, false);
     std::vector<bool>writerStatus(WRITER_THREADS, false);
 
-
     moodycamel::ConcurrentQueue<pcpp::RawPacket>queueRaw(10000000);
     moodycamel::ConcurrentQueue<IPTuple>queueParsed(10000000);
     moodycamel::ConcurrentQueue<std::vector<IPTuple>>queueSorted(50000);
     moodycamel::ConcurrentQueue<CompressedBucket>queueCompressed(50000);
     moodycamel::ConcurrentQueue<MetaBucket>queueFiles(50000);
 
-
     auto start = std::chrono::high_resolution_clock::now();
 
 //for profiling call all functions sequential in main thread
-/*    readPcapFile(std::ref(inFilename), &queueRaw);
+/*
+    readPcapFile(std::ref(inFilename), &queueRaw);
     convert(&queueRaw, &queueParsed);
     sortSingleThread(&queueParsed, &queueSorted);
     compress(&queueSorted, &queueCompressed);
 */
 
-
     for(int i = 0; i < READER_THREADS; ++i){
         readers.emplace_back(readPcapFile, std::ref(inFilename), &readerStatus, i, &queueRaw);
     }
-    if(SEQUENTIAL){join(readers);}
+    if(sequentialExecution){join(readers);}
 
     for(int i = 0; i < CONVERTER_THREADS; ++i){
         converters.emplace_back(convert, &converterStatus, i, &queueRaw, &queueParsed);
     }
-    if(SEQUENTIAL){join(converters);}
+    if(sequentialExecution){join(converters);}
 
     for(int i = 0; i < SORTER_THREADS; ++i){
         sorters.emplace_back(sortSingleThread, &sorterStatus, i, &queueParsed, &queueSorted);
     }
-    if(SEQUENTIAL){join(sorters);}
+    if(sequentialExecution){join(sorters);}
 
     for(int i = 0; i < COMPRESSOR_THREADS; ++i){
         compressors.emplace_back(compress, &compressorStatus, i, &queueSorted, &queueCompressed);
     }
-    if(SEQUENTIAL){join(compressors);}
+    if(sequentialExecution){join(compressors);}
 
     for(int i = 0; i < AGGREGATOR_THREADS; ++i){
         aggregators.emplace_back(aggregate, &aggregatorStatus, i, &queueCompressed, &queueFiles);
     }
-    if(SEQUENTIAL){join(aggregators);}
+    if(sequentialExecution){join(aggregators);}
 
     for(int i = 0; i < WRITER_THREADS; ++i){
         writers.emplace_back(writeToFile, &writerStatus, i, &queueFiles, outFilePath);
     }
-    if(SEQUENTIAL){join(writers);}
+    if(sequentialExecution){join(writers);}
 
-    if(!SEQUENTIAL){
+    if(!sequentialExecution){
         join(readers);
         join(converters);
         join(sorters);
@@ -402,23 +381,26 @@ int main(int argc, char* argv[]) {
         join(writers);
     }
 
-
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    std::cout << "total duration: \t\t" << duration << " nanoseconds\n";
-    std::cout << "Handling time per packet: " << duration / readPackets << "; Packets per second: " << 1000000000 / (duration / readPackets ) << std::endl;
-    std::cout << "Packet Count: " << readPackets << std::endl;
-
 
     // print results
-    std::cout << "\nqueueRaw size: "       << queueRaw.size_approx() << std::endl;
-    std::cout << "queueParsed size: "      << queueParsed.size_approx() << std::endl;
-    std::cout << "queueSorted size: "      << queueSorted.size_approx() << std::endl;
-    std::cout << "queueCompressed size: "  << queueCompressed.size_approx() << std::endl;
-    std::cout << "queueFiles size: "       << queueFiles.size_approx() << std::endl;
+    std::cout << "\navg reading duration: \t\t" << readingDuration/READER_THREADS << " nanoseconds\n";
+    std::cout << "avg conversion duration: \t" << conversionDuration/CONVERTER_THREADS << " nanoseconds\n";
+    std::cout << "avg sorting duration: \t\t" << sortingDuration/SORTER_THREADS << " nanoseconds\n";
+    std::cout << "avg compression duration: \t" << compressionDuration/COMPRESSOR_THREADS << " nanoseconds\n";
+    std::cout << "avg aggregation duration: \t" << aggregationDuration/AGGREGATOR_THREADS << " nanoseconds\n";
+    std::cout << "avg writing duration: \t\t" << writingDuration/WRITER_THREADS << " nanoseconds\n";
 
+    std::cout << "\ntotal absolute duration: \t\t" << duration << " nanoseconds\n";
+    std::cout << "Handling time per packet: " << duration / readPackets << "; Packets per second: " << 1000000000 / (duration / readPackets ) << "\n";
+    std::cout << "Packet Count: " << readPackets << "\n";
 
-
+    std::cout << "\nqueueRaw size: "       << queueRaw.size_approx() << "\n";
+    std::cout << "queueParsed size: "      << queueParsed.size_approx() << "\n";
+    std::cout << "queueSorted size: "      << queueSorted.size_approx() << "\n";
+    std::cout << "queueCompressed size: "  << queueCompressed.size_approx() << "\n";
+    std::cout << "queueFiles size: "       << queueFiles.size_approx() << "\n";
 
     //check that no packets have been left
     assert(queueRaw.size_approx() == 0);
