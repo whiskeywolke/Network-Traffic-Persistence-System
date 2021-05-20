@@ -15,7 +15,7 @@
 
 class Converter {
 public:
-    static bool convert(pcpp::RawPacket& rawPacket, IPTuple& tuple){
+    static inline bool convert(pcpp::RawPacket& rawPacket, IPTuple& tuple){
       //  pcpp::RawPacket rawPacket = pcpp::RawPacket(container->buf, container->cap_len, container->timestamp, false, container->linkLayerType);
         rawPacket.getPacketTimeStamp();
         pcpp::Packet parsedPacket = &rawPacket;

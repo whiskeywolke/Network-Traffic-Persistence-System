@@ -25,7 +25,7 @@ public:
     SortST(const SortST&)= delete;
     SortST& operator = (const SortST& )  = delete;
 
-    bool add(IPTuple ipTuple){
+    inline bool add(IPTuple ipTuple){
         if(map.find(ipTuple.getV4Src()) != map.end()){
             map.at(ipTuple.getV4Src()).emplace_back(ipTuple);
         }else if(map.find(ipTuple.getV4Dst()) != map.end()){
@@ -40,7 +40,7 @@ public:
     }
 
     // in certain time interval write to queue
-    void flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue){ //queue of vectors where each vector is sorted
+    inline void flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue){ //queue of vectors where each vector is sorted
         for (const auto& entry : map) {
             queue->enqueue(entry.second);
         }

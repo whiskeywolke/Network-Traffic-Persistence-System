@@ -191,10 +191,7 @@ int main(int argc, char* argv[]) {
         compressedBuckets.insert(compressedBuckets.end(), m.storage.begin(), m.storage.end());
     }
 
-    std::cout<<"compressedBuckets.size() "<<compressedBuckets.size()<<std::endl;
-
     std::vector<IPTuple>tuples{};
-
     for(auto c : compressedBuckets){
         std::vector<IPTuple>temp{};
         c.getData(temp);
