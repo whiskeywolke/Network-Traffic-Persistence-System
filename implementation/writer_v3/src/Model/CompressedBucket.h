@@ -27,6 +27,7 @@ struct FirstEntry{
         ar & portSrc;
         ar & portDst;
         ar & protocol;
+        ar & length;
         ar & timestamp;
     }
 
@@ -36,13 +37,15 @@ struct FirstEntry{
     uint16_t portDst;
     uint8_t protocol;
 
+    uint16_t length;
+
     u_int64_t timestamp;
 
     FirstEntry() = default;
 
-    FirstEntry(uint32_t v4Src, uint32_t v4Dst, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol,
+    FirstEntry(uint32_t v4Src, uint32_t v4Dst, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol, uint16_t length,
                u_int64_t timestamp) : v4Src(v4Src), v4Dst(v4Dst), portSrc(portSrc), portDst(portDst),
-                                      protocol(aProtocol), timestamp(timestamp) {}
+                                      protocol(aProtocol), length(length), timestamp(timestamp) {}
 };
 
 struct Entry{
@@ -57,6 +60,7 @@ struct Entry{
         ar & portSrc;
         ar & portDst;
         ar & protocol;
+        ar & length;
         ar & timestamp_offset;
     }
 
@@ -71,12 +75,14 @@ struct Entry{
     uint16_t portSrc;
     uint16_t portDst;
     uint8_t protocol;
+    uint16_t length;
+
 
     Entry() = default;
 
-    Entry(uint32_t v4Src, bool isSrc, int32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol)
+    Entry(uint32_t v4Src, bool isSrc, int32_t timestampOffset, uint16_t portSrc, uint16_t portDst, uint8_t aProtocol, uint16_t length)
             : addrIndex(v4Src), isSrc(isSrc), timestamp_offset(timestampOffset), portSrc(portSrc), portDst(portDst),
-              protocol(aProtocol) {}
+              protocol(aProtocol), length(length) {}
 };
 
 
@@ -153,6 +159,7 @@ public:
                     t.getPortSrc(),
                     t.getPortDst(),
                     t.getProtocol(),
+                    t.getLength(),
                     timestamp
                     );
             hasFirst = true;
@@ -268,7 +275,8 @@ public:
                     timestampOffset,
                     t.getPortSrc(),
                     t.getPortDst(),
-                    t.getProtocol()
+                    t.getProtocol(),
+                    t.getLength()
                     );
             ++entryCount;
         }
@@ -335,6 +343,7 @@ public:
                   firstEntry.portSrc,
                   firstEntry.portDst,
                   firstEntry.protocol,
+                  firstEntry.length,
                   timestamp_sec,
                   timestamp_usec};
 
@@ -371,6 +380,7 @@ public:
                 e.portSrc,
                 e.portDst,
                 e.protocol,
+                e.length,
                 timestamp_sec,
                 timestamp_usec
             };

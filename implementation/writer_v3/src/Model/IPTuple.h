@@ -7,11 +7,8 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
-
-
 #include <pcapplusplus/IpUtils.h>
 #include <pcapplusplus/IPv4Layer.h>
-
 
 
 class IPTuple {
@@ -25,6 +22,7 @@ class IPTuple {
         ar & portSrc;
         ar & portDst;
         ar & protocol;
+        ar & length;
         ar & tv_sec;
         ar & tv_usec;
     }
@@ -35,81 +33,76 @@ private:
     uint16_t portSrc;
     uint16_t portDst;
     uint8_t protocol;
-
+    uint16_t length; //length in bytes
     uint64_t tv_sec; //seconds since 1.1.1970 00:00
     uint64_t tv_usec; //microseconds since last second
-
-    bool isValid;
 
 public:
 
     IPTuple() {
-        this->isValid = false;
 /*        portSrc = 0;
         portDst = 0;
         v4Src = pcpp::IPv4Address("255.255.255.255").toInt();
         v4Dst = pcpp::IPv4Address("255.255.255.255").toInt();
    */ }
 
-    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const uint64_t &tv_secI, const uint64_t &tv_usecI){
+    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const uint16_t &lengthI, const uint64_t &tv_secI, const uint64_t &tv_usecI){
         this->v4Src = v4SrcI.toInt();
         this->v4Dst = v4DstI.toInt();
         this->portSrc = portSrcI;
         this->portDst = portDstI;
         this->protocol = protocolI;
+        this->length = lengthI;
         this->tv_sec = tv_secI;
         this->tv_usec = tv_usecI;
-
-        this->isValid = true;
     }
 
-    uint32_t getV4Src() const {
+    inline uint32_t getV4Src() const {
         return v4Src;
     }
 
-    uint32_t getV4Dst() const {
+    inline uint32_t getV4Dst() const {
         return v4Dst;
     }
 
-    uint16_t getPortSrc() const {
+    inline uint16_t getPortSrc() const {
         return portSrc;
     }
 
-    uint16_t getPortDst() const {
+    inline uint16_t getPortDst() const {
         return portDst;
     }
 
-    uint8_t getProtocol() const {
+    inline uint8_t getProtocol() const {
         return protocol;
     }
 
-    uint64_t getTvSec() const {
+    inline uint64_t getTvSec() const {
         return tv_sec;
     }
 
-    uint64_t getTvUsec() const {
+    inline uint64_t getTvUsec() const {
         return tv_usec;
     }
 
-    std::string toString(){
-        if(!isValid)
-            return nullptr;
-        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
-                std::to_string(protocol) + " " + std::to_string(tv_sec) + " " + std::to_string(tv_usec);
+    inline uint16_t getLength() const {
+        return length;
     }
 
-    bool operator==(const IPTuple& rhs){
+    std::string toString(){
+        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
+                std::to_string(protocol) + " " + std::to_string(length) + " " + std::to_string(tv_sec) + " " + std::to_string(tv_usec);
+    }
+
+    bool operator==(const IPTuple& rhs) const{
         return this->v4Src == rhs.v4Src &&
                this->v4Dst == rhs.v4Dst &&
                 this->portDst == rhs.portDst &&
                 this->portSrc == rhs.portSrc &&
+                this->length == rhs.length &&
                 this->tv_sec == rhs.tv_sec &&
                 this->tv_usec == rhs.tv_usec;
 
     }
-    bool isvalid() const{
-        return this->isValid;
-    }
-
 };
-#endif //PCAPPP_TEST_IPTUPLE_H
+#endif //IMPLEMENTATION_IPTUPLE_H

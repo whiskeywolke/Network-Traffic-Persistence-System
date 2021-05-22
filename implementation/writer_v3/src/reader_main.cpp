@@ -199,21 +199,22 @@ int main(int argc, char* argv[]) {
     }
     auto end1 = std::chrono::high_resolution_clock::now();
 
-    std::cout<<"tuples size:" <<tuples.size()<<std::endl;
-
 //////////////////////////////////////////////
 
     pcap_t *handle = pcap_open_dead(DLT_RAW, 1 << 16); //second parameter is snapshot length, i think not relevant as set by caplen
     pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
+    size_t packetCounter = 0;
+
 
     for(IPTuple t : tuples){
+        ++packetCounter;
         if(t.getProtocol() == 6){
             unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
             makeTcpPacket(t, tcpPacket);
 
             struct pcap_pkthdr pcap_hdr{};
             pcap_hdr.caplen = MINTCPHEADERLENGTH; //captured length
-            pcap_hdr.len = MINTCPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+            pcap_hdr.len = t.getLength();// >= MINTCPPKTLENGTH ? t.getLength() : MINTCPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
             pcap_hdr.ts.tv_sec = t.getTvSec();
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
@@ -224,7 +225,7 @@ int main(int argc, char* argv[]) {
 
             struct pcap_pkthdr pcap_hdr{};
             pcap_hdr.caplen = MINUDPHEADERLENGTH; //captured length
-            pcap_hdr.len = MINUDPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+            pcap_hdr.len = t.getLength();//MINUDPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
             pcap_hdr.ts.tv_sec = t.getTvSec();
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
@@ -235,7 +236,7 @@ int main(int argc, char* argv[]) {
 
             struct pcap_pkthdr pcap_hdr{};
             pcap_hdr.caplen = MINICMPHEADERLENGTH; //captured length
-            pcap_hdr.len = MINICMPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+            pcap_hdr.len = t.getLength();//MINICMPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
             pcap_hdr.ts.tv_sec = t.getTvSec();
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
@@ -248,8 +249,10 @@ int main(int argc, char* argv[]) {
     auto end2 = std::chrono::high_resolution_clock::now();
     auto durationNoWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start).count();
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
-    std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
-    std::cout <<   "duration w/ write: \t\t" << durationWrite << " nanoseconds\n";
+
+    std::cout << "\nPacket Count: " << packetCounter << std::endl;
+    std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: " << durationNoWrite / packetCounter << "; Packets per second: " << 1000000000 / (durationNoWrite / packetCounter ) << "\n";
+    std::cout << "Duration w/ write: \t\t" << durationWrite   << " nanoseconds, Handling time per packet: " << durationWrite / packetCounter << "; Packets per second: " << 1000000000 / (durationWrite / packetCounter ) << "\n";
 
     return 0;
 }

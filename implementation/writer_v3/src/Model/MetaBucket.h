@@ -55,10 +55,10 @@ public:
         return false;
     }
 
-    std::string getFileName()const{
+    inline std::string getFileName()const{
         return std::to_string(minTimestamp) + "-" + std::to_string(maxTimestamp);
     }
-    size_t size()const{
+    inline size_t size()const{
         return storage.size();
     }
 

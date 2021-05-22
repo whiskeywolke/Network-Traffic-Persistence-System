@@ -37,6 +37,7 @@ public:
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst),
                         17,
+                        packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
                         ts.tv_nsec/1000);  //convert nanoseconds to microseconds
         return true;
@@ -47,6 +48,7 @@ public:
                         ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
                         ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portDst),
                         6,
+                        packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
                         ts.tv_nsec/1000);  //convert nanoseconds to microseconds
         return true;
@@ -57,6 +59,7 @@ public:
                         0,
                         0,
                         1,
+                        packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
                         ts.tv_nsec/1000);  //convert nanoseconds to microseconds
         return true;

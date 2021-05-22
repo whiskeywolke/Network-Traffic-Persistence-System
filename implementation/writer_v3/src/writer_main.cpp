@@ -86,7 +86,6 @@ void convert(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueu
     IPTuple ipTuple;
 
     auto start = std::chrono::high_resolution_clock::now();
-
     while(!readingFinished || inQueue->size_approx() != 0){
         if(inQueue->try_dequeue(input)) {
             if (Converter::convert(input, ipTuple)) {

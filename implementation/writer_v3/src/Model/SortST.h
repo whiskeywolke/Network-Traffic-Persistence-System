@@ -13,6 +13,7 @@
 #include <boost/lockfree/queue.hpp>
 #include <tbb/concurrent_vector.h>
 #include <tbb/concurrent_hash_map.h>
+#include "../ConcurrentQueue/concurrentqueue.h"
 //Singleton Pattern
 
 class SortST {
