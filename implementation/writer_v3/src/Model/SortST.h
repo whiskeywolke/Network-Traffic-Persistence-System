@@ -18,20 +18,22 @@
 
 class SortST {
 private:
-    tsl::robin_map<uint32_t, std::vector<IPTuple>>map{};
+    tsl::robin_map<uint32_t, std::vector<IPTuple>> map{};
 
 public:
 
     SortST() = default;;
-    SortST(const SortST&)= delete;
-    SortST& operator = (const SortST& )  = delete;
 
-    inline bool add(IPTuple ipTuple){
-        if(map.find(ipTuple.getV4Src()) != map.end()){
+    SortST(const SortST &) = delete;
+
+    SortST &operator=(const SortST &) = delete;
+
+    inline bool add(IPTuple ipTuple) {
+        if (map.find(ipTuple.getV4Src()) != map.end()) {
             map.at(ipTuple.getV4Src()).emplace_back(ipTuple);
-        }else if(map.find(ipTuple.getV4Dst()) != map.end()){
+        } else if (map.find(ipTuple.getV4Dst()) != map.end()) {
             map.at(ipTuple.getV4Dst()).emplace_back(ipTuple);
-        }else{
+        } else {
             auto newEntry = std::pair<uint32_t, std::vector<IPTuple>>(ipTuple.getV4Src(), std::vector<IPTuple>{});
             newEntry.second.reserve(1000); //reserve space for faster inserts later
             newEntry.second.emplace_back(ipTuple);
@@ -41,13 +43,15 @@ public:
     }
 
     // in certain time interval write to queue
-    inline void flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>>* queue){ //queue of vectors where each vector is sorted
-        for (const auto& entry : map) {
+    inline void
+    flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>> *queue) { //queue of vectors where each vector is sorted
+        for (const auto &entry : map) {
             queue->enqueue(entry.second);
         }
         map.clear();
     }
-    size_t size()const{
+
+    size_t size() const {
         return map.size();
     }
 };

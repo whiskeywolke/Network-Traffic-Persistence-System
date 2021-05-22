@@ -22,10 +22,10 @@ std::vector<std::string> getFiles(const char *path) {
         std::cout << "dir is null" << std::endl;
         return {};
     }
-    std::vector<std::string>files{};
+    std::vector<std::string> files{};
     while ((entry = readdir(dir)) != nullptr) {
         std::string filename = entry->d_name;
-        if(filename.length() == 37 && filename.substr(33,36) == ".bin" && filename.at(16) == '-'){
+        if (filename.length() == 37 && filename.substr(33, 36) == ".bin" && filename.at(16) == '-') {
             files.push_back(filename);
         }
     }
@@ -33,11 +33,11 @@ std::vector<std::string> getFiles(const char *path) {
     return files;
 }
 
-inline void makeIcmpPacket(const IPTuple& t, unsigned char *icmp){
+inline void makeIcmpPacket(const IPTuple &t, unsigned char *icmp) {
     icmp[0] = 0x45; //declare as IPv4 Packet
     icmp[9] = 0x01; //declare next layer as icmp
 
-   // uint32_t srcAddrInt = t.getV4Src();
+    // uint32_t srcAddrInt = t.getV4Src();
     uint32_t srcAddrInt = pcpp::IPv4Address("0.0.0.0").toInt();
     unsigned char srcAddrBytes[4];
     memcpy(srcAddrBytes, &srcAddrInt, sizeof(srcAddrBytes));
@@ -58,7 +58,7 @@ inline void makeIcmpPacket(const IPTuple& t, unsigned char *icmp){
     icmp[19] = dstAddrBytes[3];
 }
 
-inline void makeUdpPacket(const IPTuple& t, unsigned char *icmp) {
+inline void makeUdpPacket(const IPTuple &t, unsigned char *icmp) {
     icmp[0] = 0x45; //declare as IPv4 Packet
     icmp[9] = 0x11; //declare next layer as udp
 
@@ -99,7 +99,7 @@ inline void makeUdpPacket(const IPTuple& t, unsigned char *icmp) {
     icmp[23] = dstPortBytes[1];
 }
 
-inline void makeTcpPacket(const IPTuple& t, unsigned char *icmp) {
+inline void makeTcpPacket(const IPTuple &t, unsigned char *icmp) {
     icmp[0] = 0x45; //declare as IPv4 Packet
     icmp[9] = 0x06; //declare next layer as TCP
 
@@ -150,34 +150,34 @@ inline void makeTcpPacket(const IPTuple& t, unsigned char *icmp) {
 #define MINTCPPKTLENGTH 28
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 //    std::string filePath = "/home/ubuntu/testfiles/dir-1-3/";  // (1031565 packets)  (with payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-1-6/";  // (27013768 packets)  (no payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
     std::string filePath = "./";//default directory
 
-    for(int i = 1; i < argc; ++i){
-        if(strcmp(argv[i], "-i") == 0){ // input directory specified
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-i") == 0) { // input directory specified
             filePath = argv[++i];
-            if(filePath.at(filePath.size()-1) != '/'){
+            if (filePath.at(filePath.size() - 1) != '/') {
                 filePath.append("/");
             }
         }
     }
 
-    std::cout<<"Reading from directory: " + filePath<<std::endl;
+    std::cout << "Reading from directory: " + filePath << std::endl;
 
     auto files = getFiles(filePath.c_str());
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::vector<MetaBucket>metaBuckets{};
+    std::vector<MetaBucket> metaBuckets{};
     {
-        for(const auto& file : files) {
+        for (const auto &file : files) {
             MetaBucket b;
 
-            std::string fileName = filePath  + file;
+            std::string fileName = filePath + file;
             std::ifstream ifs(fileName);
             boost::archive::binary_iarchive ia(ifs);
             ia >> b;
@@ -185,15 +185,15 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::vector<CompressedBucket>compressedBuckets{};
+    std::vector<CompressedBucket> compressedBuckets{};
 
-    for(auto m : metaBuckets){
+    for (auto m : metaBuckets) {
         compressedBuckets.insert(compressedBuckets.end(), m.storage.begin(), m.storage.end());
     }
 
-    std::vector<IPTuple>tuples{};
-    for(auto c : compressedBuckets){
-        std::vector<IPTuple>temp{};
+    std::vector<IPTuple> tuples{};
+    for (auto c : compressedBuckets) {
+        std::vector<IPTuple> temp{};
         c.getData(temp);
         tuples.insert(tuples.end(), temp.begin(), temp.end());
     }
@@ -201,14 +201,15 @@ int main(int argc, char* argv[]) {
 
 //////////////////////////////////////////////
 
-    pcap_t *handle = pcap_open_dead(DLT_RAW, 1 << 16); //second parameter is snapshot length, i think not relevant as set by caplen
+    pcap_t *handle = pcap_open_dead(DLT_RAW, 1
+            << 16); //second parameter is snapshot length, i think not relevant as set by caplen
     pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
     size_t packetCounter = 0;
 
 
-    for(IPTuple t : tuples){
+    for (IPTuple t : tuples) {
         ++packetCounter;
-        if(t.getProtocol() == 6){
+        if (t.getProtocol() == 6) {
             unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
             makeTcpPacket(t, tcpPacket);
 
@@ -219,7 +220,7 @@ int main(int argc, char* argv[]) {
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
             pcap_dump((u_char *) dumper, &pcap_hdr, tcpPacket);
-        }else if(t.getProtocol() == 17){
+        } else if (t.getProtocol() == 17) {
             unsigned char udpPacket[MINUDPHEADERLENGTH] = {0x00};
             makeUdpPacket(t, udpPacket);
 
@@ -230,7 +231,7 @@ int main(int argc, char* argv[]) {
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
             pcap_dump((u_char *) dumper, &pcap_hdr, udpPacket);
-        }else if(t.getProtocol() == 1)    {
+        } else if (t.getProtocol() == 1) {
             unsigned char icmpPacket[MINICMPHEADERLENGTH] = {0x00};
             makeIcmpPacket(t, icmpPacket);
 
@@ -241,7 +242,7 @@ int main(int argc, char* argv[]) {
             pcap_hdr.ts.tv_usec = t.getTvUsec();
 
             pcap_dump((u_char *) dumper, &pcap_hdr, icmpPacket);
-        }else{
+        } else {
             assert(false);
         }
     }
@@ -251,8 +252,12 @@ int main(int argc, char* argv[]) {
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
 
     std::cout << "\nPacket Count: " << packetCounter << std::endl;
-    std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: " << durationNoWrite / packetCounter << "; Packets per second: " << 1000000000 / (durationNoWrite / packetCounter ) << "\n";
-    std::cout << "Duration w/ write: \t\t" << durationWrite   << " nanoseconds, Handling time per packet: " << durationWrite / packetCounter << "; Packets per second: " << 1000000000 / (durationWrite / packetCounter ) << "\n";
+    std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
+              << durationNoWrite / packetCounter << "; Packets per second: "
+              << 1000000000 / (durationNoWrite / packetCounter) << "\n";
+    std::cout << "Duration w/ write: \t\t" << durationWrite << " nanoseconds, Handling time per packet: "
+              << durationWrite / packetCounter << "; Packets per second: "
+              << 1000000000 / (durationWrite / packetCounter) << "\n";
 
     return 0;
 }

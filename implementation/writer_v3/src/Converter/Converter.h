@@ -15,11 +15,11 @@
 
 class Converter {
 public:
-    static inline bool convert(pcpp::RawPacket& rawPacket, IPTuple& tuple){
-      //  pcpp::RawPacket rawPacket = pcpp::RawPacket(container->buf, container->cap_len, container->timestamp, false, container->linkLayerType);
+    static inline bool convert(pcpp::RawPacket &rawPacket, IPTuple &tuple) {
+        //  pcpp::RawPacket rawPacket = pcpp::RawPacket(container->buf, container->cap_len, container->timestamp, false, container->linkLayerType);
         rawPacket.getPacketTimeStamp();
         pcpp::Packet parsedPacket = &rawPacket;
-        if(parsedPacket.isPacketOfType(pcpp::IPv4)) {
+        if (parsedPacket.isPacketOfType(pcpp::IPv4)) {
             if (parsedPacket.isPacketOfType(pcpp::TCP)) {
                 return makeIpTupleFromTCP(parsedPacket, tuple, rawPacket.getPacketTimeStamp());
             } else if (parsedPacket.isPacketOfType(pcpp::UDP)) {
@@ -31,7 +31,7 @@ public:
         return false;
     }
 
-    inline static bool makeIpTupleFromUDP(const pcpp::Packet& packet, IPTuple& tuple, timespec ts) {
+    inline static bool makeIpTupleFromUDP(const pcpp::Packet &packet, IPTuple &tuple, timespec ts) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
@@ -39,10 +39,11 @@ public:
                         17,
                         packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
-                        ts.tv_nsec/1000);  //convert nanoseconds to microseconds
+                        ts.tv_nsec / 1000);  //convert nanoseconds to microseconds
         return true;
     }
-    inline static bool makeIpTupleFromTCP(const pcpp::Packet& packet, IPTuple& tuple, timespec ts) {
+
+    inline static bool makeIpTupleFromTCP(const pcpp::Packet &packet, IPTuple &tuple, timespec ts) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
@@ -50,10 +51,11 @@ public:
                         6,
                         packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
-                        ts.tv_nsec/1000);  //convert nanoseconds to microseconds
+                        ts.tv_nsec / 1000);  //convert nanoseconds to microseconds
         return true;
     }
-    inline static bool makeIpTupleFromICMP(const pcpp::Packet& packet, IPTuple& tuple, timespec ts) {
+
+    inline static bool makeIpTupleFromICMP(const pcpp::Packet &packet, IPTuple &tuple, timespec ts) {
         tuple = IPTuple(packet.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
                         packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                         0,
@@ -61,7 +63,7 @@ public:
                         1,
                         packet.getRawPacketReadOnly()->getFrameLength(),
                         ts.tv_sec,
-                        ts.tv_nsec/1000);  //convert nanoseconds to microseconds
+                        ts.tv_nsec / 1000);  //convert nanoseconds to microseconds
         return true;
     }
 

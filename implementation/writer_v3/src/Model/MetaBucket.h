@@ -22,8 +22,7 @@ private:
     friend class boost::serialization::access;
 
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
-    {
+    void serialize(Archive &ar, const unsigned int version) {
         storage.shrink_to_fit();
         ar & storage;
     }
@@ -32,22 +31,22 @@ private:
     uint64_t maxTimestamp;
 
 public:
-    std::vector<CompressedBucket>storage{};
+    std::vector<CompressedBucket> storage{};
 
-    MetaBucket(){
-        assert(METABUCKETSIZE<storage.max_size());
+    MetaBucket() {
+        assert(METABUCKETSIZE < storage.max_size());
         storage.reserve(METABUCKETSIZE);
         minTimestamp = std::numeric_limits<uint64_t>::max();
         maxTimestamp = 0;
     }
 
-    bool add(const CompressedBucket& b){
-        if(storage.size()<METABUCKETSIZE){
+    bool add(const CompressedBucket &b) {
+        if (storage.size() < METABUCKETSIZE) {
             storage.emplace_back(b);
-            if(b.getMinTimestampAsInt()<minTimestamp){
+            if (b.getMinTimestampAsInt() < minTimestamp) {
                 minTimestamp = b.getMinTimestampAsInt();
             }
-            if(b.getMaxTimestampAsInt()>maxTimestamp){
+            if (b.getMaxTimestampAsInt() > maxTimestamp) {
                 maxTimestamp = b.getMaxTimestampAsInt();
             }
             return true;
@@ -55,10 +54,11 @@ public:
         return false;
     }
 
-    inline std::string getFileName()const{
+    inline std::string getFileName() const {
         return std::to_string(minTimestamp) + "-" + std::to_string(maxTimestamp);
     }
-    inline size_t size()const{
+
+    inline size_t size() const {
         return storage.size();
     }
 

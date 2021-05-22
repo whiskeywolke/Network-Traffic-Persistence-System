@@ -15,8 +15,7 @@ class IPTuple {
     friend class boost::serialization::access;
 
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
-    {
+    void serialize(Archive &ar, const unsigned int version) {
         ar & v4Dst;
         ar & v4Src;
         ar & portSrc;
@@ -46,7 +45,9 @@ public:
         v4Dst = pcpp::IPv4Address("255.255.255.255").toInt();
    */ }
 
-    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI, const uint16_t &portDstI, const uint8_t &protocolI, const uint16_t &lengthI, const uint64_t &tv_secI, const uint64_t &tv_usecI){
+    IPTuple(const pcpp::IPv4Address v4SrcI, const pcpp::IPv4Address v4DstI, const uint16_t &portSrcI,
+            const uint16_t &portDstI, const uint8_t &protocolI, const uint16_t &lengthI, const uint64_t &tv_secI,
+            const uint64_t &tv_usecI) {
         this->v4Src = v4SrcI.toInt();
         this->v4Dst = v4DstI.toInt();
         this->portSrc = portSrcI;
@@ -89,20 +90,23 @@ public:
         return length;
     }
 
-    std::string toString() const{
-        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
-                std::to_string(protocol) + " " + std::to_string(length) + " " + std::to_string(tv_sec) + " " + std::to_string(tv_usec);
+    std::string toString() const {
+        return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" +
+               pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
+               std::to_string(protocol) + " " + std::to_string(length) + " " + std::to_string(tv_sec) + " " +
+               std::to_string(tv_usec);
     }
 
-    bool operator==(const IPTuple& rhs) const{
+    bool operator==(const IPTuple &rhs) const {
         return this->v4Src == rhs.v4Src &&
                this->v4Dst == rhs.v4Dst &&
-                this->portDst == rhs.portDst &&
-                this->portSrc == rhs.portSrc &&
-                this->length == rhs.length &&
-                this->tv_sec == rhs.tv_sec &&
-                this->tv_usec == rhs.tv_usec;
+               this->portDst == rhs.portDst &&
+               this->portSrc == rhs.portSrc &&
+               this->length == rhs.length &&
+               this->tv_sec == rhs.tv_sec &&
+               this->tv_usec == rhs.tv_usec;
 
     }
 };
+
 #endif //IMPLEMENTATION_IPTUPLE_H
