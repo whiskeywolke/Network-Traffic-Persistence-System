@@ -89,7 +89,7 @@ public:
         return length;
     }
 
-    std::string toString(){
+    std::string toString() const{
         return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" + pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
                 std::to_string(protocol) + " " + std::to_string(length) + " " + std::to_string(tv_sec) + " " + std::to_string(tv_usec);
     }

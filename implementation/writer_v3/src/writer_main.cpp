@@ -56,7 +56,7 @@ std::string getPredefinedFilterAsString(){
 void readPcapFile(const std::string& fileName, std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<pcpp::RawPacket>* outQueue){
     pcpp::IFileReaderDevice* reader =  pcpp::IFileReaderDevice::getReader(fileName.c_str());
 
-    if (reader == NULL || !reader->open())
+    if (reader == nullptr || !reader->open())
     {
         printf("Error creating reader device\n");
         exit(1);
@@ -111,7 +111,7 @@ void sortSingleThread(std::vector<bool>* status, int threadID, moodycamel::Concu
     while(!conversionFinished || inQueue->size_approx() != 0){
         IPTuple t;
         if(inQueue->try_dequeue(t)){
-            while(!b.add(t)){};
+            while(!b.add(t)){}
         }
         auto current_time = std::chrono::high_resolution_clock::now();
         if(std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 2 ){
@@ -218,7 +218,7 @@ void aggregate(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQu
     aggregationDuration += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
-void writeToFile(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<MetaBucket>* inQueue, std::string outFilePath) {
+void writeToFile(std::vector<bool>* status, int threadID, moodycamel::ConcurrentQueue<MetaBucket>* inQueue, const std::string& outFilePath) {
     auto start = std::chrono::high_resolution_clock::now();
    {
         MetaBucket b;

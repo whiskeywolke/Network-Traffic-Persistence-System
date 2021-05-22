@@ -18,12 +18,12 @@ std::vector<std::string> getFiles(const char *path) {
     struct dirent *entry;
     DIR *dir = opendir(path);
 
-    if (dir == NULL) {
+    if (dir == nullptr) {
         std::cout << "dir is null" << std::endl;
         return {};
     }
     std::vector<std::string>files{};
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != nullptr) {
         std::string filename = entry->d_name;
         if(filename.length() == 37 && filename.substr(33,36) == ".bin" && filename.at(16) == '-'){
             files.push_back(filename);
