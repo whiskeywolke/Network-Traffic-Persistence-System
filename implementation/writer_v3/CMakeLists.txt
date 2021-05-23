@@ -26,7 +26,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test src/reader_main.cpp src/writer_main.cpp src/Model/IPTuple.h src/Converter/Converter.h src/Model/SortST.h src/Model/CompressedBucket.h src/ src/Model/MetaBucket.h)
+add_executable(pcappp_test src/reader_main.cpp src/writer_main.cpp src/Model/IPTuple.h src/Converter/Converter.h src/Model/SortST.h src/Model/CompressedBucket.h src/ src/Model/MetaBucket.h src/Model/Filter.h)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 

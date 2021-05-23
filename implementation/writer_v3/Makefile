@@ -97,7 +97,7 @@ reader_build:
 	g++ $(PCAPPP_LIBS_DIR) -static-libstdc++ -o build/reader/a.out build/reader/main.o $(PCAPPP_LIBS) -I $(BOOST) -L $(BOOST_LIB) $(BOOST_SERIALIZATION) -O3
 
 reader_run:
-	./build/reader/a.out -i $(WORKDIR)
+	./build/reader/a.out -i $(WORKDIR) $(INPARAMS)
 
 reader_clean:
 	rm ./build/reader/main.o

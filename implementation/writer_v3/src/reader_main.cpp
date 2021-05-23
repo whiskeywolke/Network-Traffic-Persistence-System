@@ -10,6 +10,7 @@
 
 #include "Model/CompressedBucket.h"
 #include "Model/MetaBucket.h"
+#include "Model/Filter.h"
 #include "Converter/Converter.h"
 #include "ConcurrentQueue/concurrentqueue.h"
 
@@ -142,7 +143,7 @@ inline void makeTcpPacket(const IPTuple &t, unsigned char *tcp) {
 
 void filterby(){}
 /*
- * Filter class
+ * AndFilter class
  * void set filter
  *
  * bool filter(IPtuple)
@@ -167,6 +168,11 @@ int main(int argc, char *argv[]) {
 //    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
     std::string filePath = "./";//default directory
+    std::string filter{};
+
+    /*for (int i = 1; i < argc; ++i) {
+        std::cout<<argv[i]<<std::endl;
+    }*/
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-i") == 0) { // input directory specified
@@ -175,14 +181,45 @@ int main(int argc, char *argv[]) {
                 filePath.append("/");
             }
         }
+        if (strcmp(argv[i], "-f") == 0) { // filter specified
+            ++i;
+            while (i < argc && argv[i][0] != '-'){ //everything until next parameter (starts with '-') is filter
+                filter.append(argv[i]).append(" ");
+                ++i;
+            }
+        }
     }
-
     std::cout << "Reading from directory: " + filePath << std::endl;
 
     auto files = getFiles(filePath.c_str());
     if(files.empty()){
         std::cout<<"No Files found - exiting\n";
         exit(0);
+    }
+
+    AndFilter myFilter{};
+   // AndFilter myFilter(filter);
+    std::cout << "Applying AndFilter: " << myFilter.toString() <<std::endl;
+    OrFilter f{};
+    SrcIPFilter a{123, Operator::equal};
+    DstIPFilter b{123, Operator::equal};
+    IPFilter c{123, Operator::equal};
+    DstPortFilter d{123, Operator::equal};
+    SrcPortFilter e{123, Operator::greaterThanEqual};
+    PortFilter g{123, Operator::greaterThan};
+
+    std::vector<Filter*>testv{
+        &myFilter,
+        &f,
+        &a,
+        &b,
+        &c,
+        &d,
+        &e,
+        &g,
+    };
+    for(auto x : testv){
+        std::cout<<x->toString()<<std::endl;
     }
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -221,44 +258,53 @@ int main(int argc, char *argv[]) {
     pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
     size_t packetCounter = 0;
 
+    IPFilter ipFilter{pcpp::IPv4Address("54.243.154.237").toInt(), Operator::equal};
+    DstPortFilter portFilter{80, Operator::equal};
+    LengthFilter lengthFilter{609, Operator::lessThan};
+    AndFilter andFilter{};
+    andFilter.addFilter(&ipFilter);
+    andFilter.addFilter(&portFilter);
+    andFilter.addFilter(&lengthFilter);
 
     for (IPTuple t : tuples) {
         ++packetCounter;
-        if (t.getProtocol() == 6) {
-            unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
-            makeTcpPacket(t, tcpPacket);
+        if(andFilter.apply(t)){
+            if (t.getProtocol() == 6) {
+                unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
+                makeTcpPacket(t, tcpPacket);
 
-            struct pcap_pkthdr pcap_hdr{};
-            pcap_hdr.caplen = MINTCPHEADERLENGTH; //captured length
-            pcap_hdr.len = t.getLength();// >= MINTCPPKTLENGTH ? t.getLength() : MINTCPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
-            pcap_hdr.ts.tv_sec = t.getTvSec();
-            pcap_hdr.ts.tv_usec = t.getTvUsec();
+                struct pcap_pkthdr pcap_hdr{};
+                pcap_hdr.caplen = MINTCPHEADERLENGTH; //captured length
+                pcap_hdr.len = t.getLength();// >= MINTCPPKTLENGTH ? t.getLength() : MINTCPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+                pcap_hdr.ts.tv_sec = t.getTvSec();
+                pcap_hdr.ts.tv_usec = t.getTvUsec();
 
-            pcap_dump((u_char *) dumper, &pcap_hdr, tcpPacket);
-        } else if (t.getProtocol() == 17) {
-            unsigned char udpPacket[MINUDPHEADERLENGTH] = {0x00};
-            makeUdpPacket(t, udpPacket);
+                pcap_dump((u_char *) dumper, &pcap_hdr, tcpPacket);
+            } else if (t.getProtocol() == 17) {
+                unsigned char udpPacket[MINUDPHEADERLENGTH] = {0x00};
+                makeUdpPacket(t, udpPacket);
 
-            struct pcap_pkthdr pcap_hdr{};
-            pcap_hdr.caplen = MINUDPHEADERLENGTH; //captured length
-            pcap_hdr.len = t.getLength();//MINUDPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
-            pcap_hdr.ts.tv_sec = t.getTvSec();
-            pcap_hdr.ts.tv_usec = t.getTvUsec();
+                struct pcap_pkthdr pcap_hdr{};
+                pcap_hdr.caplen = MINUDPHEADERLENGTH; //captured length
+                pcap_hdr.len = t.getLength();//MINUDPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+                pcap_hdr.ts.tv_sec = t.getTvSec();
+                pcap_hdr.ts.tv_usec = t.getTvUsec();
 
-            pcap_dump((u_char *) dumper, &pcap_hdr, udpPacket);
-        } else if (t.getProtocol() == 1) {
-            unsigned char icmpPacket[MINICMPHEADERLENGTH] = {0x00};
-            makeIcmpPacket(t, icmpPacket);
+                pcap_dump((u_char *) dumper, &pcap_hdr, udpPacket);
+            } else if (t.getProtocol() == 1) {
+                unsigned char icmpPacket[MINICMPHEADERLENGTH] = {0x00};
+                makeIcmpPacket(t, icmpPacket);
 
-            struct pcap_pkthdr pcap_hdr{};
-            pcap_hdr.caplen = MINICMPHEADERLENGTH; //captured length
-            pcap_hdr.len = t.getLength();//MINICMPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
-            pcap_hdr.ts.tv_sec = t.getTvSec();
-            pcap_hdr.ts.tv_usec = t.getTvUsec();
+                struct pcap_pkthdr pcap_hdr{};
+                pcap_hdr.caplen = MINICMPHEADERLENGTH; //captured length
+                pcap_hdr.len = t.getLength();//MINICMPPKTLENGTH;            //actual length of packet (>=caplen) in bytes //for imcp must be >= 21 to prevent misrepresentation
+                pcap_hdr.ts.tv_sec = t.getTvSec();
+                pcap_hdr.ts.tv_usec = t.getTvUsec();
 
-            pcap_dump((u_char *) dumper, &pcap_hdr, icmpPacket);
-        } else {
-            assert(false);
+                pcap_dump((u_char *) dumper, &pcap_hdr, icmpPacket);
+            } else {
+                assert(false);
+            }
         }
     }
     pcap_dump_close(dumper);

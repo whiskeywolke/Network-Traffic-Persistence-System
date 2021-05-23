@@ -88,7 +88,7 @@ class CompressedBucket {
     //dictionary encoding for IP adress, +1 byte if src or dst, other IP adress is always equal
     //delta encoding for timestamp
 
-    //what to do with protocol?
+    //what to do with protocolId?
     //what to do with port?
 
 private:
