@@ -7,6 +7,7 @@
 
 
 #include <string>
+#include <regex>
 #include "IPTuple.h"
 
 /*    uint32_t v4Src;
@@ -27,7 +28,11 @@ enum Operator {
     lessThanEqual,
     greaterThanEqual,
 };
-static const char *operatorStr[] = {
+/*static const char *operatorType[] = {
+        "==", "!=", "<", ">", "<=", ">="
+};
+*/
+static const std::vector<std::string> operatorType = {
         "==", "!=", "<", ">", "<=", ">="
 };
 
@@ -38,8 +43,13 @@ public:
     virtual std::string toString() = 0;
 };
 
+class BoolFilter : public Filter {
+public:
+    virtual void addFilter(Filter *filter) = 0;
+};
+
 class AndFilter
-        : public Filter { // everything must apply to pass this filter, every filter can only have one instance of one filterable object
+        : public BoolFilter { // everything must apply to pass this filter, every filter can only have one instance of one filterable object
     std::vector<Filter *> filters{};
 public:
     AndFilter() = default;
@@ -58,12 +68,20 @@ public:
     }
 
     std::string toString() override {
-        return "AndFilter";
+        std::string s = "(";
+        for (size_t i = 0; i < filters.size(); ++i) {
+            if (i > 0) {
+                s += " and ";
+            }
+            s += filters.at(i)->toString();
+        }
+        s += ")";
+        return s;
     }
 
 };
 
-class OrFilter : public Filter { //only one element of filter must apply
+class OrFilter : public BoolFilter { //only one element of filter must apply
 private:
     std::vector<Filter *> filters{};
 public:
@@ -83,7 +101,15 @@ public:
     }
 
     std::string toString() override {
-        return "OrFilter";
+        std::string s = "(";
+        for (size_t i = 0; i < filters.size(); ++i) {
+            if (i > 0) {
+                s += " or ";
+            }
+            s += filters.at(i)->toString();
+        }
+        s += ")";
+        return s;
     }
 };
 
@@ -114,7 +140,7 @@ public:
     }
 
     std::string toString() override {
-        return "SrcIPFilter " + std::string(operatorStr[op]) + std::to_string(addr);
+        return "ip.src " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
     }
 };
 
@@ -145,7 +171,7 @@ public:
     }
 
     std::string toString() override {
-        return "DstIPFilter " + std::string(operatorStr[op]) + std::to_string(addr);
+        return "ip.dst " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
     }
 };
 
@@ -160,7 +186,7 @@ public:
     }
 
     std::string toString() override {
-        return "IPFilter";
+        return "ip.addr " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
     }
 };
 
@@ -191,7 +217,7 @@ public:
     }
 
     std::string toString() override {
-        return "SrcPortFilter " + std::string(operatorStr[op]) + std::to_string(port);
+        return "SrcPortFilter " + std::string(operatorType[op]) + std::to_string(port);
     }
 };
 
@@ -222,7 +248,7 @@ public:
     }
 
     std::string toString() override {
-        return "DstPortFilter: " + std::string(operatorStr[op]) + std::to_string(port);
+        return "DstPortFilter: " + std::string(operatorType[op]) + std::to_string(port);
     }
 };
 
@@ -268,7 +294,7 @@ public:
     }
 
     std::string toString() override {
-        return "ProtocolFilter: " + std::string(operatorStr[op]) + std::to_string(protocolId);
+        return "proto " + std::string(operatorType[op]) + " " + std::to_string(protocolId);
     }
 };
 
@@ -299,7 +325,7 @@ public:
     }
 
     std::string toString() override {
-        return "ProtocolFilter: " + std::string(operatorStr[op]) + std::to_string(length);
+        return "ProtocolFilter: " + std::string(operatorType[op]) + std::to_string(length);
     }
 };
 
@@ -313,24 +339,30 @@ public:
     bool apply(const IPTuple &t) override {
         switch (op) {
             case equal:
-                return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() == static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) &&
+                       t.getTvUsec() == static_cast<uint64_t>(time.tv_usec);
             case notEqual:
-                return t.getTvSec() != static_cast<uint64_t>(time.tv_sec) || t.getTvUsec() != static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() != static_cast<uint64_t>(time.tv_sec) ||
+                       t.getTvUsec() != static_cast<uint64_t>(time.tv_usec);
             case lessThan:
-                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() < static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) &&
+                       t.getTvUsec() < static_cast<uint64_t>(time.tv_usec);
             case greaterThan:
-                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() > static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) &&
+                       t.getTvUsec() > static_cast<uint64_t>(time.tv_usec);
             case lessThanEqual:
-                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() <= static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) &&
+                       t.getTvUsec() <= static_cast<uint64_t>(time.tv_usec);
             case greaterThanEqual:
-                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() >= static_cast<uint64_t>(time.tv_usec);
+                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) &&
+                       t.getTvUsec() >= static_cast<uint64_t>(time.tv_usec);
             default:
                 return false;
         }
     }
 
     std::string toString() override {
-        return "TimeFilter: " + std::string(operatorStr[op]) + std::to_string(time.tv_sec) + " " +
+        return "TimeFilter: " + std::string(operatorType[op]) + std::to_string(time.tv_sec) + " " +
                std::to_string(time.tv_usec);
     }
 };
@@ -364,5 +396,128 @@ public:
 
 
 };
+
+//TODO probably recursive parsing with parentheses would be better
+//right now looking for operators first, then identifying the filter types from left to right
+//eg ip.addr == 10.0.0.6 || ip.addr == 212.199.202.9 && udp
+//too complex grammar
+//frame.time <= "Oct 15, 2013 16:00:00"
+//frame.len > 300
+
+
+//TYPES
+//frame.time
+//frame.len
+//proto
+//udp
+//tcp
+//icmp
+//ip.src
+//ip.dst
+//ip.addr
+
+//COMPARISON
+// >
+// <
+// >=
+// <=
+// ==
+// !=
+
+//Value
+//depends on type, either an ipaddress in normal format (eg "10.0.0.1")
+//for date it must be "Oct 15, 2013 16:00:00"
+//else for length, protocol or port is an integer
+
+//language looks like this ([TYPE] [COMPARISON] [VALUE] [LOGICALOP])*
+
+static const std::vector<std::string> filterType = {
+        "frame.time", "frame.len", "proto", "ip.src", "ip.dst", "ip.addr"
+};
+
+
+void parseFilter(std::string filterString, AndFilter &filter) {
+    std::vector<std::string> commands{};
+    std::stringstream ss(filterString);
+
+    std::string s;
+    while (std::getline(ss, s, ' ')) {
+        commands.push_back(s);
+    }
+
+    BoolFilter *boolFilter = &filter;
+    for (size_t i = 0; i < commands.size(); ++i) {
+        std::string command = commands.at(i);
+        std::string comparison = "NULL";
+        std::string value = "NULL";
+
+        if (command == "udp") {
+            command = "proto";
+            comparison = "==";
+            value = "17";
+        } else if (command == "tcp") {
+            command = "proto";
+            comparison = "==";
+            value = "6";
+        } else if (command == "icmp") {
+            command = "proto";
+            comparison = "==";
+            value = "1";
+        } else {
+            comparison = commands.at(++i);
+            value = commands.at(++i);
+        }
+
+        std::string nextBoolFilter = "NULL";
+        if (i + 1 < commands.size()) { //there is a command next, it must be a boolean filter
+            nextBoolFilter = commands.at(++i);
+        }
+
+        Operator op = static_cast<Operator>(std::distance(operatorType.begin(),
+                                                          std::find(operatorType.begin(), operatorType.end(),
+                                                                    comparison)));
+
+        Filter *typeFilter;
+        switch (std::distance(filterType.begin(), std::find(filterType.begin(), filterType.end(), command))) {
+            case 0:
+                //TODO make timeval from string
+                typeFilter = new TimeFilter({123, 123}, op);
+                break;
+            case 1:
+                typeFilter = new LengthFilter(std::stoi(value), op);
+                break;
+            case 2:
+                typeFilter = new ProtocolFilter(std::stoi(value), op);
+                break;
+            case 3:
+                typeFilter = new SrcIPFilter(pcpp::IPv4Address(value).toInt(), op);
+                break;
+            case 4:
+                typeFilter = new DstIPFilter(pcpp::IPv4Address(value).toInt(), op);
+                break;
+            case 5:
+                typeFilter = new IPFilter(pcpp::IPv4Address(value).toInt(), op);
+                break;
+            default:
+                assert(false);
+        }
+        if (nextBoolFilter == "&&") {
+            AndFilter *andFilter = new AndFilter();
+            andFilter->addFilter(typeFilter);
+            boolFilter->addFilter(andFilter);
+            boolFilter = andFilter;
+        } else if (nextBoolFilter == "||") {
+            OrFilter *orFilter = new OrFilter();
+            orFilter->addFilter(typeFilter);
+            boolFilter->addFilter(orFilter);
+            boolFilter = orFilter;
+        } else if (nextBoolFilter == "NULL") { //no new filter query must end, add to previous filter
+            boolFilter->addFilter(typeFilter);
+            break;
+        } else {
+            assert(false);
+        }
+    }
+}
 
 #endif //IMPLEMENTATION_FILTER_H

@@ -141,16 +141,6 @@ inline void makeTcpPacket(const IPTuple &t, unsigned char *tcp) {
     tcp[23] = dstPortBytes[1];
 }
 
-void filterby(){}
-/*
- * AndFilter class
- * void set filter
- *
- * bool filter(IPtuple)
- *
- *
- * */
-
 
 #define MINICMPHEADERLENGTH 20
 #define MINICMPPKTLENGTH 21
@@ -179,7 +169,7 @@ int main(int argc, char *argv[]) {
         }
         if (strcmp(argv[i], "-f") == 0) { // filterString specified
             ++i;
-            while (i < argc && argv[i][0] != '-'){ //everything until next parameter (starts with '-') is filterString
+            while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
                 filterString.append(argv[i]).append(" ");
                 ++i;
             }
@@ -188,46 +178,44 @@ int main(int argc, char *argv[]) {
     std::cout << "Reading from directory: " + filePath << std::endl;
 
     auto files = getFiles(filePath.c_str());
-    if(files.empty()){
-        std::cout<<"No Files found - exiting\n";
+    if (files.empty()) {
+        std::cout << "No Files found - exiting\n";
         exit(0);
     }
 
     AndFilter myFilter{};
-   // AndFilter myFilter(filterString);
-    std::cout << "Applying AndFilter: " << myFilter.toString() <<std::endl;
+    // AndFilter myFilter(filterString);
+    parseFilter(filterString, myFilter);
+    std::cout << "Applying Filter: " << myFilter.toString() << std::endl;
 
-    //TODO parse filterString construct from string
     //TODO set timerange filterString from query
-
-
     auto start = std::chrono::high_resolution_clock::now();
 
     TimeRangeFilter timeRangeFilter{};
 //    timeRangeFilter.setTimeTo(1526564948547943);
 
-    for (size_t i = 0; i < files.size();){
+    for (size_t i = 0; i < files.size();) {
         std::string name = files.at(i);
         uint8_t midIndex = name.find('-');
         uint8_t endIndex = name.find('.');
-        uint64_t fromTime = std::stoll(name.substr(0,midIndex));
-        uint64_t toTime = std::stoll(name.substr(midIndex+1, endIndex-midIndex-1));
-        if(!timeRangeFilter.apply(fromTime, toTime)){
-            files.erase(files.begin()+i);
-        } else{
+        uint64_t fromTime = std::stoll(name.substr(0, midIndex));
+        uint64_t toTime = std::stoll(name.substr(midIndex + 1, endIndex - midIndex - 1));
+        if (!timeRangeFilter.apply(fromTime, toTime)) {
+            files.erase(files.begin() + i);
+        } else {
             ++i;
         }
     }
 
-    for(auto x : files){
-        std::cout<< x<<std::endl;
+    std::cout << "Reading from Files: " << "\n";
+    for (auto x : files) {
+        std::cout << "  " << x << "\n";
     }
 
     std::vector<MetaBucket> metaBuckets{};
     {
         for (const auto &file : files) {
             MetaBucket b;
-
             std::string fileName = filePath + file;
             std::ifstream ifs(fileName);
             boost::archive::binary_iarchive ia(ifs);
@@ -238,10 +226,9 @@ int main(int argc, char *argv[]) {
     std::vector<CompressedBucket> compressedBuckets{};
 
     //TODO check if compressedbucket contains ip address if queried
-
     for (auto m : metaBuckets) {
-        for(const CompressedBucket& c : m.getStorage()){
-            if(timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())){
+        for (const CompressedBucket &c : m.getStorage()) {
+            if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
                 compressedBuckets.push_back(c);
             }
         }
@@ -256,24 +243,15 @@ int main(int argc, char *argv[]) {
     }
     auto end1 = std::chrono::high_resolution_clock::now();
 
-//////////////////////////////////////////////
 
     pcap_t *handle = pcap_open_dead(DLT_RAW, 1
             << 16); //second parameter is snapshot length, i think not relevant as set by caplen
     pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
     size_t packetCounter = 0;
 
-    IPFilter ipFilter{pcpp::IPv4Address("54.243.154.237").toInt(), Operator::equal};
-    DstPortFilter portFilter{80, Operator::equal};
-    LengthFilter lengthFilter{609, Operator::lessThan};
-    AndFilter andFilter{};
-//    andFilter.addFilter(&ipFilter);
-//    andFilter.addFilter(&portFilter);
-//    andFilter.addFilter(&lengthFilter);
-
     for (IPTuple t : tuples) {
         ++packetCounter;
-        if(andFilter.apply(t)){
+        if (myFilter.apply(t)) {
             if (t.getProtocol() == 6) {
                 unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
                 makeTcpPacket(t, tcpPacket);
