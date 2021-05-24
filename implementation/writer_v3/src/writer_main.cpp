@@ -4,6 +4,8 @@
 #include <thread>
 #include <fstream>
 #include <mutex>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
@@ -51,6 +53,31 @@ std::string getPredefinedFilterAsString() {
     std::string res{};
     andFilter.parseToString(res);
     return res;
+}
+
+uint64_t getTotalFilesSize(const char *path) { //works only in linux
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+
+    if (dir == nullptr) {
+        std::cout << "dir is null" << std::endl;
+        return {};
+    }
+    uint64_t filesizeBytes = 0;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+        if (filename.length() == 37 && filename.substr(33, 36) == ".bin" && filename.at(16) == '-') {
+            struct stat st;
+            if(stat((path+filename).c_str(),&st)==0)
+                filesizeBytes += st.st_size;
+            else{
+                closedir(dir);
+                exit(1);
+            }
+        }
+    }
+    closedir(dir);
+    return filesizeBytes;
 }
 
 void readPcapFile(const std::string &fileName, std::vector<bool> *status, int threadID,
@@ -406,6 +433,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Handling time per packet: " << duration / readPackets << "; Packets per second: "
               << 1000000000 / (duration / readPackets) << "\n";
     std::cout << "Packet Count: " << readPackets << "\n";
+    std::cout << "Total File size: " << getTotalFilesSize(outFilePath.c_str()) <<" Bytes \n";
+    std::cout << "Avg Bytes per Packet: " << (getTotalFilesSize(outFilePath.c_str())+0.0)/readPackets <<" Bytes \n";
 
     std::cout << "\nqueueRaw size: " << queueRaw.size_approx() << "\n";
     std::cout << "queueParsed size: " << queueParsed.size_approx() << "\n";

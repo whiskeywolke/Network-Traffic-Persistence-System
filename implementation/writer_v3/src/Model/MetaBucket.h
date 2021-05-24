@@ -30,8 +30,9 @@ private:
     uint64_t minTimestamp;
     uint64_t maxTimestamp;
 
-public:
     std::vector<CompressedBucket> storage{};
+
+public:
 
     MetaBucket() {
         assert(METABUCKETSIZE < storage.max_size());
@@ -60,6 +61,10 @@ public:
 
     inline size_t size() const {
         return storage.size();
+    }
+
+    const std::vector<CompressedBucket> &getStorage() const {
+        return storage;
     }
 
 };

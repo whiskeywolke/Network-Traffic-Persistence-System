@@ -168,11 +168,7 @@ int main(int argc, char *argv[]) {
 //    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
 //    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
     std::string filePath = "./";//default directory
-    std::string filter{};
-
-    /*for (int i = 1; i < argc; ++i) {
-        std::cout<<argv[i]<<std::endl;
-    }*/
+    std::string filterString{};
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-i") == 0) { // input directory specified
@@ -181,10 +177,10 @@ int main(int argc, char *argv[]) {
                 filePath.append("/");
             }
         }
-        if (strcmp(argv[i], "-f") == 0) { // filter specified
+        if (strcmp(argv[i], "-f") == 0) { // filterString specified
             ++i;
-            while (i < argc && argv[i][0] != '-'){ //everything until next parameter (starts with '-') is filter
-                filter.append(argv[i]).append(" ");
+            while (i < argc && argv[i][0] != '-'){ //everything until next parameter (starts with '-') is filterString
+                filterString.append(argv[i]).append(" ");
                 ++i;
             }
         }
@@ -198,31 +194,34 @@ int main(int argc, char *argv[]) {
     }
 
     AndFilter myFilter{};
-   // AndFilter myFilter(filter);
+   // AndFilter myFilter(filterString);
     std::cout << "Applying AndFilter: " << myFilter.toString() <<std::endl;
-    OrFilter f{};
-    SrcIPFilter a{123, Operator::equal};
-    DstIPFilter b{123, Operator::equal};
-    IPFilter c{123, Operator::equal};
-    DstPortFilter d{123, Operator::equal};
-    SrcPortFilter e{123, Operator::greaterThanEqual};
-    PortFilter g{123, Operator::greaterThan};
 
-    std::vector<Filter*>testv{
-        &myFilter,
-        &f,
-        &a,
-        &b,
-        &c,
-        &d,
-        &e,
-        &g,
-    };
-    for(auto x : testv){
-        std::cout<<x->toString()<<std::endl;
-    }
+    //TODO parse filterString construct from string
+    //TODO set timerange filterString from query
+
 
     auto start = std::chrono::high_resolution_clock::now();
+
+    TimeRangeFilter timeRangeFilter{};
+//    timeRangeFilter.setTimeTo(1526564948547943);
+
+    for (size_t i = 0; i < files.size();){
+        std::string name = files.at(i);
+        uint8_t midIndex = name.find('-');
+        uint8_t endIndex = name.find('.');
+        uint64_t fromTime = std::stoll(name.substr(0,midIndex));
+        uint64_t toTime = std::stoll(name.substr(midIndex+1, endIndex-midIndex-1));
+        if(!timeRangeFilter.apply(fromTime, toTime)){
+            files.erase(files.begin()+i);
+        } else{
+            ++i;
+        }
+    }
+
+    for(auto x : files){
+        std::cout<< x<<std::endl;
+    }
 
     std::vector<MetaBucket> metaBuckets{};
     {
@@ -236,13 +235,19 @@ int main(int argc, char *argv[]) {
             metaBuckets.push_back(b);
         }
     }
-
     std::vector<CompressedBucket> compressedBuckets{};
 
+    //TODO check if compressedbucket contains ip address if queried
+
     for (auto m : metaBuckets) {
-        compressedBuckets.insert(compressedBuckets.end(), m.storage.begin(), m.storage.end());
+        for(const CompressedBucket& c : m.getStorage()){
+            if(timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())){
+                compressedBuckets.push_back(c);
+            }
+        }
     }
 
+    //TODO filterString before conversion to IPTuple, make decision on Entries
     std::vector<IPTuple> tuples{};
     for (auto c : compressedBuckets) {
         std::vector<IPTuple> temp{};
@@ -262,9 +267,9 @@ int main(int argc, char *argv[]) {
     DstPortFilter portFilter{80, Operator::equal};
     LengthFilter lengthFilter{609, Operator::lessThan};
     AndFilter andFilter{};
-    andFilter.addFilter(&ipFilter);
-    andFilter.addFilter(&portFilter);
-    andFilter.addFilter(&lengthFilter);
+//    andFilter.addFilter(&ipFilter);
+//    andFilter.addFilter(&portFilter);
+//    andFilter.addFilter(&lengthFilter);
 
     for (IPTuple t : tuples) {
         ++packetCounter;
@@ -308,6 +313,7 @@ int main(int argc, char *argv[]) {
         }
     }
     pcap_dump_close(dumper);
+
     auto end2 = std::chrono::high_resolution_clock::now();
     auto durationNoWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start).count();
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();

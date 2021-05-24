@@ -5,13 +5,15 @@ compression tests:
 376.959.170 with map dict & ip 16bytes
 367.680.764 with vec dict & ip 16bytes
 343.197.480 with vec dict & ip 8bytes
+405.695.518 with vec dict & ip 8bytes & packet size & meta size per bucket
 
-1.1GB
+1.3GB
 14.442.164 no dict ip 32bytes
 12.379.024 ip 16 bytes no dict (not possible)
 12.380.162 with map dict & ip 16bytes
 12.380.048 with vec dict & ip 16bytes
 11.348.186 with vec dict & ip 8bytes
+13.411.380 with vec dict & ip 8bytes & packet size & meta size per bucket
 
 6.7GB
 1.666.006.024 no dict ip 32bytes
@@ -19,3 +21,4 @@ compression tests:
 1.749.489.944 with map dict & ip 16bytes
 1.672.462.868 with vec dict & ip 16bytes
 1.593.455.382 with vec dict & ip 8bytes
+1.898.177.346 with vec dict & ip 8bytes & packet size & meta size per bucket

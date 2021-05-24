@@ -48,7 +48,7 @@ public:
         filters.push_back(filter);
     }
 
-    bool apply(const IPTuple &t) {
+    bool apply(const IPTuple &t) override {
         for (auto f : filters) {
             if (!f->apply(t)) {
                 return false;
@@ -57,7 +57,7 @@ public:
         return true;
     }
 
-    std::string toString() {
+    std::string toString() override {
         return "AndFilter";
     }
 
@@ -73,7 +73,7 @@ public:
         filters.push_back(filter);
     }
 
-    bool apply(const IPTuple &t) {
+    bool apply(const IPTuple &t) override {
         for (auto f : filters) {
             if (f->apply(t)) {
                 return true;
@@ -82,7 +82,7 @@ public:
         return false;
     }
 
-    std::string toString() {
+    std::string toString() override {
         return "OrFilter";
     }
 };
@@ -313,17 +313,17 @@ public:
     bool apply(const IPTuple &t) override {
         switch (op) {
             case equal:
-                return t.getTvSec() == time.tv_sec && t.getTvUsec() == time.tv_usec;
+                return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() == static_cast<uint64_t>(time.tv_usec);
             case notEqual:
-                return t.getTvSec() != time.tv_sec || t.getTvUsec() != time.tv_usec;
+                return t.getTvSec() != static_cast<uint64_t>(time.tv_sec) || t.getTvUsec() != static_cast<uint64_t>(time.tv_usec);
             case lessThan:
-                return t.getTvSec() <= time.tv_sec && t.getTvUsec() < time.tv_usec;
+                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() < static_cast<uint64_t>(time.tv_usec);
             case greaterThan:
-                return t.getTvSec() >= time.tv_sec && t.getTvUsec() > time.tv_usec;
+                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() > static_cast<uint64_t>(time.tv_usec);
             case lessThanEqual:
-                return t.getTvSec() <= time.tv_sec && t.getTvUsec() <= time.tv_usec;
+                return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() <= static_cast<uint64_t>(time.tv_usec);
             case greaterThanEqual:
-                return t.getTvSec() >= time.tv_sec && t.getTvUsec() >= time.tv_usec;
+                return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) && t.getTvUsec() >= static_cast<uint64_t>(time.tv_usec);
             default:
                 return false;
         }
@@ -333,6 +333,36 @@ public:
         return "TimeFilter: " + std::string(operatorStr[op]) + std::to_string(time.tv_sec) + " " +
                std::to_string(time.tv_usec);
     }
+};
+
+class TimeRangeFilter { //checks if the time range overlaps with queried time range
+private:
+    uint64_t from;
+    uint64_t to;
+public:
+    TimeRangeFilter() {
+        from = 0;
+        to = 0;
+    }
+
+    void setTimeFrom(uint64_t from) {
+        this->from = from;
+    }
+
+    void setTimeTo(uint64_t to) {
+        this->to = to;
+    }
+
+    bool apply(const uint64_t &fromTimeFile,
+               const uint64_t &toTimeFile) const { //overlap if at least one of the parameters is between from & to of filter if filter is set (at leas one of from & to is not zero)
+        return (from == 0 && to == 0) ||
+               (fromTimeFile <= from && from <= toTimeFile) ||
+               (fromTimeFile <= to && to <= toTimeFile) ||
+               (from <= fromTimeFile && fromTimeFile <= to) ||
+               (from <= toTimeFile && toTimeFile <= to);
+    }
+
+
 };
 
 #endif //IMPLEMENTATION_FILTER_H

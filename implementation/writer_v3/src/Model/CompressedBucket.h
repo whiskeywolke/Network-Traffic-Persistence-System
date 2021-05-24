@@ -107,6 +107,8 @@ private:
         ar & hasSecond;
         ar & matchedBySrc;
         ar & dict;
+        ar & maxOffset;
+        ar & minOffset;
     }
 
     FirstEntry firstEntry;
@@ -115,20 +117,9 @@ private:
     bool hasFirst;
     bool hasSecond;
     bool matchedBySrc;
-
-    //   typedef boost::bimap< uint32_t, uint16_t > dictionary; //save an ip adress - index relation (using bimap since either value must only exist once)
-    //   dictionary dict;
-    //is larger than 16 bit on purpose so we can check if it is larger than allowed and then return false on insert
-
-    //std::map<uint32_t, uint16_t>dict; //map with all ip - index pairs. note: needs to be swapped on decoding
     std::vector<uint32_t> dict;
-
-    //TODO remove temporary observation helpers
     int32_t maxOffset = 0;
     int32_t minOffset = 0;
-//    tsl::robin_map<uint16_t , int>portMap{};
-    //////////////
-//    CompressedBucket() = delete;
 
 public:
     CompressedBucket() {
@@ -146,7 +137,6 @@ public:
         if (t.getV4Src() == 0 || t.getV4Dst() == 0) {
             assert(false);
         }
-
 
         if (!hasFirst) {
             u_int64_t timestamp = t.getTvSec() * 1000000 + t.getTvUsec();
@@ -300,7 +290,7 @@ public:
     }
 */
     size_t ipCount() const {
-        return dict.size();
+        return dict.size() +1; //+1 since the ip address of first entry needs to be added
     }
 
     struct timeval getMinTimestamp() const {
