@@ -362,7 +362,7 @@ public:
     }
 
     std::string toString() override {
-        return "TimeFilter: " + std::string(operatorType[op]) + std::to_string(time.tv_sec) + " " +
+        return "TimeFilter: " + std::string(operatorType[op]) + " " + std::to_string(time.tv_sec) + " " +
                std::to_string(time.tv_usec);
     }
 };
@@ -435,15 +435,110 @@ static const std::vector<std::string> filterType = {
         "frame.time", "frame.len", "proto", "ip.src", "ip.dst", "ip.addr"
 };
 
+//expects a string like this: Oct 15, 2013 16:00:00" and converts it to timeval, microseconds are set to 0
+struct timeval stringToTimeval(std::string timeString) {
+    std::string month = timeString.substr(0, 3); //must be month
+    if (month == "Jan" || month == "jan") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '1';
+    } else if (month == "Feb" || month == "feb") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '2';
+    } else if (month == "Mar" || month == "mar") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '2';
+    } else if (month == "Apr" || month == "apr") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '4';
+    } else if (month == "May" || month == "may") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '5';
+    } else if (month == "Jun" || month == "jun") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '6';
+    } else if (month == "Jul" || month == "jul") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '7';
+    } else if (month == "Aug" || month == "aug") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '8';
+    } else if (month == "Sep" || month == "sep") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '0';
+        timeString.at(1) = '9';
+    } else if (month == "Oct" || month == "oct") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '1';
+        timeString.at(1) = '0';
+    } else if (month == "Nov" || month == "nov") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '1';
+        timeString.at(1) = '1';
+    } else if (month == "Dec" || month == "dec") {
+        timeString.erase(0, 1);
+        timeString.at(0) = '1';
+        timeString.at(1) = '2';
+    } else {
+        std::cout << "INVALID MONTH" << std::endl;
+    }
 
-void parseFilter(std::string filterString, AndFilter &filter) {
+    static const std::string dateTimeFormat{"%m %d, %Y %H:%M:%S"};
+    struct tm timestamp{};
+
+    strptime(timeString.c_str(), dateTimeFormat.c_str(), &timestamp);
+
+    //find out if Daylight saving time is active
+    std::time_t tTemp = std::time(0);
+    std::tm *now = std::localtime(&tTemp);
+
+    timestamp.tm_isdst = now->tm_isdst;
+    time_t t = mktime(&timestamp);
+
+    //query resolution not higher than seconds
+    timeval myTimeval{};
+    myTimeval.tv_sec = t;
+    myTimeval.tv_usec = 0;
+
+    return myTimeval;
+}
+
+
+void parseFilter(const std::string &filterString, AndFilter &filter) {
     std::vector<std::string> commands{};
     std::stringstream ss(filterString);
 
+
     std::string s;
+    std::string temp{};
     while (std::getline(ss, s, ' ')) {
         commands.push_back(s);
     }
+    //iterate over commands vector and merge time parameters if set, remove any empty entries
+    for (size_t i = 0; i < commands.size();) {
+        if (commands.at(i) == filterType.at(0)) { // frame.time == "Oct 15, 2013 16:00:00"
+            commands.at(i + 2) += " " + commands.at(i + 3) + " " + commands.at(i + 4) + " " + commands.at(i + 5);
+            commands.erase(commands.begin() + i + 3, commands.begin() + i + 6);
+            ++i;
+        } else if (commands.at(i).empty()) {
+            commands.erase(commands.begin() + i);
+        } else {
+            ++i;
+        }
+    }
+/*
+    for(auto x : commands){
+        std::cout<<x.size()<<" : "<<x<<std::endl;
+    }
+*/
+    //todo reverse vector to make it a left to right binding query language
 
     BoolFilter *boolFilter = &filter;
     for (size_t i = 0; i < commands.size(); ++i) {
@@ -451,6 +546,7 @@ void parseFilter(std::string filterString, AndFilter &filter) {
         std::string comparison = "NULL";
         std::string value = "NULL";
 
+        //resolve protocol shortcuts
         if (command == "udp") {
             command = "proto";
             comparison = "==";
@@ -479,10 +575,11 @@ void parseFilter(std::string filterString, AndFilter &filter) {
 
         Filter *typeFilter;
         switch (std::distance(filterType.begin(), std::find(filterType.begin(), filterType.end(), command))) {
-            case 0:
-                //TODO make timeval from string
-                typeFilter = new TimeFilter({123, 123}, op);
+            case 0: {
+                struct timeval t = stringToTimeval(value);
+                typeFilter = new TimeFilter({t.tv_sec, t.tv_usec}, op);
                 break;
+            }
             case 1:
                 typeFilter = new LengthFilter(std::stoi(value), op);
                 break;
@@ -499,6 +596,7 @@ void parseFilter(std::string filterString, AndFilter &filter) {
                 typeFilter = new IPFilter(pcpp::IPv4Address(value).toInt(), op);
                 break;
             default:
+                std::cout << "error at: " << command << std::endl;
                 assert(false);
         }
         if (nextBoolFilter == "&&") {
@@ -515,6 +613,7 @@ void parseFilter(std::string filterString, AndFilter &filter) {
             boolFilter->addFilter(typeFilter);
             break;
         } else {
+            std::cout << "nextBoolFilter is: " << nextBoolFilter << std::endl;
             assert(false);
         }
     }

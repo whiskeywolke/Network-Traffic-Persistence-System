@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Statistic">
+    <option name="excludedDirectories">
+      <list>
+        <option value="$PROJECT_DIR$/cmake-build-debug" />
+        <option value="$PROJECT_DIR$/build" />
+        <option value="$PROJECT_DIR$/cmake" />
+        <option value="$PROJECT_DIR$/src/ConcurrentQueue" />
+        <option value="$PROJECT_DIR$/src/HashMap" />
+        <option value="$PROJECT_DIR$/../pcappp-test" />
+        <option value="$PROJECT_DIR$/../speetest-various" />
+        <option value="$PROJECT_DIR$/../writer" />
+        <option value="$PROJECT_DIR$/../writer_v2" />
+      </list>
+    </option>
+  </component>
+</project>
