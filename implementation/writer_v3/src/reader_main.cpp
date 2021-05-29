@@ -183,16 +183,17 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    AndFilter myFilter{};
-    // AndFilter myFilter(filterString);
+    filter::AndFilter myFilter{};
     parseFilter(filterString, myFilter);
     std::cout << "Applying Filter: " << myFilter.toString() << std::endl;
 
     //TODO set timerange filterString from query
     auto start = std::chrono::high_resolution_clock::now();
 
-    TimeRangeFilter timeRangeFilter{};
-//    timeRangeFilter.setTimeTo(1526564948547943);
+    filter::TimeRangeFilter timeRangeFilter = filter::makeTimerangeFilter(filterString);//  timeRangeFilter{};
+    std::cout << timeRangeFilter.toString() << std::endl;
+    //TODO fix bug if timerange filter is applied with or dont remove file (eg: udp || time>5) in this case also time < 5 needs to be searched
+
 
     for (size_t i = 0; i < files.size();) {
         std::string name = files.at(i);
@@ -228,9 +229,9 @@ int main(int argc, char *argv[]) {
     //TODO check if compressedbucket contains ip address if queried
     for (auto m : metaBuckets) {
         for (const CompressedBucket &c : m.getStorage()) {
-            if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
-                compressedBuckets.push_back(c);
-            }
+            //if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
+            compressedBuckets.push_back(c);
+            //}
         }
     }
 
@@ -297,12 +298,13 @@ int main(int argc, char *argv[]) {
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
 
     std::cout << "\nPacket Count: " << packetCounter << std::endl;
-    std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
-              << durationNoWrite / packetCounter << "; Packets per second: "
-              << 1000000000 / (durationNoWrite / packetCounter) << "\n";
-    std::cout << "Duration w/ write: \t\t" << durationWrite << " nanoseconds, Handling time per packet: "
-              << durationWrite / packetCounter << "; Packets per second: "
-              << 1000000000 / (durationWrite / packetCounter) << "\n";
-
+    if (packetCounter != 0) {
+        std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
+                  << durationNoWrite / packetCounter << "; Packets per second: "
+                  << 1000000000 / (durationNoWrite / packetCounter) << "\n";
+        std::cout << "Duration w/ write: \t\t" << durationWrite << " nanoseconds, Handling time per packet: "
+                  << durationWrite / packetCounter << "; Packets per second: "
+                  << 1000000000 / (durationWrite / packetCounter) << "\n";
+    }
     return 0;
 }
