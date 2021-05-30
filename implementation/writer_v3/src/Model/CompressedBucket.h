@@ -101,10 +101,10 @@ private:
         entries.shrink_to_fit();
 
         ar & firstEntry;
-        ar & entryCount;
+        //ar & entryCount;
         ar & hasFirst;
         ar & entries;
-        ar & hasSecond;
+        //ar & hasSecond;
         ar & matchedBySrc;
         ar & dict;
         ar & maxOffset;
@@ -113,7 +113,7 @@ private:
 
     FirstEntry firstEntry;
     std::vector<Entry> entries;
-    int entryCount;
+    //int entryCount;
     bool hasFirst;
     bool hasSecond;
     bool matchedBySrc;
@@ -128,7 +128,7 @@ public:
         hasSecond = false;
         matchedBySrc = false;
         entries = std::vector<Entry>{};
-        entryCount = 0;
+        //entryCount = 0;
     }
 
     //assumes that all tuples added have one matching ipv4 address
@@ -267,7 +267,7 @@ public:
                     t.getProtocol(),
                     t.getLength()
             );
-            ++entryCount;
+            //++entryCount;
         }
         return true;
     }
