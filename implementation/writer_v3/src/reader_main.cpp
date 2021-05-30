@@ -220,8 +220,7 @@ int main(int argc, char *argv[]) {
     std::vector<CompressedBucket> compressedBuckets{};
     for (auto m : metaBuckets) {
         for (const CompressedBucket &c : m.getStorage()) {
-            //TODO prevent copying of dictionary in c.getIpAddresses
-            if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) && ipPreFilter.apply(c.getIpAddresses())) {
+            if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) && ipPreFilter.apply(c.getDict(),c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
                 compressedBuckets.push_back(c);
             }
         }

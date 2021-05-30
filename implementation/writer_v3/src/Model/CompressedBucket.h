@@ -319,6 +319,10 @@ public:
         return this->dict;
     }
 
+    struct FirstEntry getFirstEntry() const{
+        return this->firstEntry;
+    }
+
     std::vector<uint32_t> getIpAddresses()const{
         std::vector<uint32_t>ret = this->dict;
         ret.push_back(firstEntry.v4Src);

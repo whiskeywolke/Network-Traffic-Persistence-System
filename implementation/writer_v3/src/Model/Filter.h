@@ -423,17 +423,17 @@ namespace filter {
         void addLessThan(uint32_t addr){
             lessThan.push_back(addr);
         }
-        bool apply(const std::vector<uint32_t>& addresses){
+        bool apply(const std::vector<uint32_t>& addresses, const uint32_t& additional1, const uint32_t& additional2) const{
             for(uint32_t equalAddr : equalTo){
                 //check if IP address
-                if(std::find(addresses.begin(), addresses.end(), equalAddr) != addresses.end()){
+                if(additional1 == equalAddr || additional2 == equalAddr || std::find(addresses.begin(), addresses.end(), equalAddr) != addresses.end()){
                     return true;
                 }
             }
 
             for(uint32_t greaterThanAddr : greaterThan){
                 pcpp::IPv4Address test(greaterThanAddr);
-                if(std::find_if(addresses.begin(), addresses.end(), [&greaterThanAddr](const uint32_t& val){
+                if(additional1 >= greaterThanAddr || additional2 >= greaterThanAddr || std::find_if(addresses.begin(), addresses.end(), [&greaterThanAddr](const uint32_t& val){
                     return val>=greaterThanAddr;
                 }) != greaterThan.end()){
                     return true;
@@ -441,7 +441,7 @@ namespace filter {
             }
 
             for(uint32_t lessThanAddr : lessThan){
-                if(std::find_if(addresses.begin(), addresses.end(), [&lessThanAddr](const uint32_t& val){
+                if(additional1 <= lessThanAddr || additional2 <= lessThanAddr || std::find_if(addresses.begin(), addresses.end(), [&lessThanAddr](const uint32_t& val){
                     return val>=lessThanAddr;
                 }) != greaterThan.end()){
                     return true;
@@ -455,7 +455,7 @@ namespace filter {
             }
         }
 
-        std::string toString(){
+        std::string toString() const{
             std::string ret{};
             ret+= "equal: ";
             for(auto x : equalTo){
