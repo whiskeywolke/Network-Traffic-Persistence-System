@@ -92,7 +92,7 @@ namespace filter {
         }
 
         bool apply(const IPTuple &t) override {
-            if(filters.empty()){
+            if (filters.empty()) {
                 return true;
             }
             for (auto f : filters) {
@@ -534,31 +534,48 @@ namespace filter {
         return ret;
     }
 
-    std::vector<std::string> vectorizeCommands(const std::string &filterString) {
+    std::vector<std::string> prepareCommands(const std::string &filterString) {
         std::vector<std::string> commands{};
         std::stringstream ss(filterString);
 
         std::string s;
         while (std::getline(ss, s, ' ')) {
-            commands.push_back(s);
+            if (!s.empty()) {
+                commands.push_back(s);
+            }
         }
-        //iterate over commands vector and merge time parameters if set, remove any empty entries
-        for (size_t i = 0; i < commands.size();) {
-            if (commands.at(i) == filterType.at(0)) { // frame.time == "Oct 15, 2013 16:00:00"
+        //iterate over commands vector and merge time parameters if set,
+        // remove any empty entries
+        // remove space symbol at the begin and at the end of a commmand
+        // resolve shortcuts like udp tcp icmp
+        for (size_t i = 0; i < commands.size(); ++i) {
+            std::string tempCommand = commands.at(i);
+            std::transform(tempCommand.begin(), tempCommand.end(), tempCommand.begin(), ::tolower);
+            if (tempCommand == "udp") {
+                commands.at(i) = "proto";
+                commands.insert(commands.begin() + i + 1, "==");
+                commands.insert(commands.begin() + i + 2, "17");
+                i += 2;
+            } else if (tempCommand == "tcp") {
+                commands.at(i) = "proto";
+                commands.insert(commands.begin() + i + 1, "==");
+                commands.insert(commands.begin() + i + 2, "6");
+                i += 2;
+            } else if (tempCommand == "icmp") {
+                commands.at(i) = "proto";
+                commands.insert(commands.begin() + i + 1, "==");
+                commands.insert(commands.begin() + i + 2, "1");
+                i += 2;
+            } else if (commands.at(i) == filterType.at(0)) { // frame.time == "Oct 15, 2013 16:00:00"
                 commands.at(i + 2) += " " + commands.at(i + 3) + " " + commands.at(i + 4) + " " + commands.at(i + 5);
                 commands.erase(commands.begin() + i + 3, commands.begin() + i + 6);
-                ++i;
-            } else if (commands.at(i).empty()) {
-                commands.erase(commands.begin() + i);
-            } else {
-                ++i;
             }
         }
         return commands;
     }
 
     uint64_t getMaxTime(const std::string &filterString) {
-        std::vector<std::string> commands = vectorizeCommands(filterString);
+        std::vector<std::string> commands = prepareCommands(filterString);
         uint64_t maxTime = 0;
         for (size_t i = 0; i < commands.size(); ++i) {
             if (commands.at(i) == "frame.time") {
@@ -575,7 +592,7 @@ namespace filter {
     TimeRangeFilter makeTimerangeFilter(const std::string &filterString) {
         TimeRangeFilter ret{};
 
-        std::vector<std::string> commands = vectorizeCommands(filterString);
+        std::vector<std::string> commands = prepareCommands(filterString);
         uint64_t maxTime = 0;
         Operator maxOperator = Operator::lessThanEqual;
         bool maxFound = false;
@@ -583,91 +600,94 @@ namespace filter {
         Operator minOperator = Operator::greaterThanEqual;
         bool minFound = false;
 
+        bool timeIsIrrelevant = false;
+
         for (size_t i = 0; i < commands.size(); ++i) {
-            if (commands.at(i) == "frame.time") {
+            //in case a known command that is not frame.time before or after the time is linked with "or"
+            // everything needs to be searched e.g. (udp || time.frame > 5) or e.g. (time.frame > 5 || udp) means that all UDP packets are wanted and all other packets with a timestamp greater than 5
+            //in this case all files need to be searched
+
+
+            if (std::find(filterType.begin(), filterType.end(), commands.at(i)) != filterType.end() &&
+                commands.at(i) != "frame.time" && (commands.size() > i + 3 && commands.at(i + 3) == "||")) {
+                timeIsIrrelevant = true;
+                break;
+            } else if (commands.at(i) == "frame.time") {
+                // if after a frame.time an "or" follows which is not frame.time, time is also irrelevant
+                if (commands.size() > i + 4 && commands.at(i + 4) != "frame.time" && commands.at(i + 3) == "||") {
+                    timeIsIrrelevant = true;
+                    break;
+                }
+
                 struct timeval t = stringToTimeval(commands.at(i + 2));
                 uint64_t temp = t.tv_sec * 1000000 + t.tv_usec;
                 Operator op = static_cast<Operator>(std::distance(operatorType.begin(),
                                                                   std::find(operatorType.begin(),
                                                                             operatorType.end(),
                                                                             commands.at(i + 1))));
-                if (temp > maxTime && (op == Operator::lessThanEqual || op == Operator::lessThan || op == Operator::equal)) { //can only be a max value if operator is < or <= or ==
+                if (temp > maxTime && (op == Operator::lessThanEqual || op == Operator::lessThan ||
+                                       op == Operator::equal)) { //can only be a max value if operator is < or <= or ==
                     maxTime = temp;
                     maxOperator = op;
                     maxFound = true;
                 }
-                if (temp < minTime && (op == Operator::greaterThanEqual || op == Operator::greaterThan || op == Operator::equal)) { //can only be a min value if operator is > or >= or ==) {
+                if (temp < minTime && (op == Operator::greaterThanEqual || op == Operator::greaterThan || op ==
+                                                                                                          Operator::equal)) { //can only be a min value if operator is > or >= or ==) {
                     minTime = temp;
                     minOperator = op;
                     minFound = true;
                 }
-
             }
         }
 
-        if(!maxFound){
-            maxTime = std::numeric_limits<uint64_t>::max();
-        }
-        if(!minFound){
-            minTime = 0;
-        }
-
-        //in case the range is specified between to values
-        if (minTime < maxTime) {
-            ret.setTimeFrom(minTime);
-            ret.setTimeTo(maxTime);
-        } else if (minTime == maxTime ){
-            //so if min & max are equal assume that
-            ret.setTimeFrom(minTime);
-            ret.setTimeTo(maxTime);
-        } else if (maxTime == 0 && minTime == std::numeric_limits<uint64_t>::max()) {
-            //no time was found, do nothing
+        if (timeIsIrrelevant) {
+            ret.setTimeFrom(0);
+            ret.setTimeTo(std::numeric_limits<uint64_t>::max());
+            std::cout << "Time is irrelevant for file pruning, searching all files" << std::endl;
         } else {
-            std::cout << "max: " << maxTime << std::endl;
-            std::cout << "min: " << minTime << std::endl;
-            std::cout << "maxop: " << maxOperator << std::endl;
-            std::cout << "minop: " << minOperator << std::endl;
-            std::cout << ">=: " << Operator::greaterThanEqual << std::endl;
-            std::cout << "this time search is not implemented!" << std::endl;
-            assert(false);
+            if (!maxFound) {
+                maxTime = std::numeric_limits<uint64_t>::max();
+                maxFound = true;
+            }
+            if (!minFound) {
+                minTime = 0;
+                minFound = true;
+            }
+
+            //in case the range is specified between to values
+            if (minTime < maxTime) {
+                ret.setTimeFrom(minTime);
+                ret.setTimeTo(maxTime);
+            } else if (minTime == maxTime) {
+                //so if min & max are equal assume that
+                ret.setTimeFrom(minTime);
+                ret.setTimeTo(maxTime);
+            } else if (maxTime == 0 && minTime == std::numeric_limits<uint64_t>::max()) {
+                //no time was found, do nothing
+            } else {
+                std::cout << "max: " << maxTime << std::endl;
+                std::cout << "min: " << minTime << std::endl;
+                std::cout << "maxop: " << maxOperator << std::endl;
+                std::cout << "minop: " << minOperator << std::endl;
+                std::cout << ">=: " << Operator::greaterThanEqual << std::endl;
+                std::cout << "this time search is not implemented!" << std::endl;
+                assert(false);
+            }
         }
         return ret;
     }
 
     void parseFilter(const std::string &filterString, AndFilter &filter) {
-        std::vector<std::string> commands = vectorizeCommands(filterString);
-/*
-    for(auto x : commands){
-        std::cout<<x.size()<<" : "<<x<<std::endl;
-    }
-*/
+        std::vector<std::string> commands = prepareCommands(filterString);
         //commands = reverseCommandVector(commands);     //reverse vector to make it a left to right binding query language (does it make sense?)
 
         BoolFilter *boolFilter = &filter;
         for (size_t i = 0; i < commands.size(); ++i) {
             std::string command = commands.at(i);
-            std::string comparison = "NULL";
-            std::string value = "NULL";
-
-            //resolve protocol shortcuts
-            if (command == "udp") {
-                command = "proto";
-                comparison = "==";
-                value = "17";
-            } else if (command == "tcp") {
-                command = "proto";
-                comparison = "==";
-                value = "6";
-            } else if (command == "icmp") {
-                command = "proto";
-                comparison = "==";
-                value = "1";
-            } else {
-                comparison = commands.at(++i);
-                value = commands.at(++i);
-            }
-
+            std::string comparison = commands.at(++i);
+            std::string value = commands.at(++i);
             std::string nextBoolFilter = "NULL";
+
             if (i + 1 < commands.size()) { //there is a command next, it must be a boolean filter
                 nextBoolFilter = commands.at(++i);
             }

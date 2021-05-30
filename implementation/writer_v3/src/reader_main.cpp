@@ -38,13 +38,11 @@ inline void makeIcmpPacket(const IPTuple &t, unsigned char *icmp) {
     icmp[0] = 0x45; //declare as IPv4 Packet
     icmp[9] = 0x01; //declare next layer as icmp
 
-    // uint32_t srcAddrInt = t.getV4Src();
-    uint32_t srcAddrInt = pcpp::IPv4Address("0.0.0.0").toInt();
+    uint32_t srcAddrInt = t.getV4Src();
     unsigned char srcAddrBytes[4];
     memcpy(srcAddrBytes, &srcAddrInt, sizeof(srcAddrBytes));
 
-    // uint32_t srcAddrInt = t.getV4Src();
-    uint32_t dstAddrInt = pcpp::IPv4Address("237.2.3.4").toInt(); //will be marked as invalid depending on address
+    uint32_t dstAddrInt = t.getV4Dst();
     unsigned char dstAddrBytes[4];
     memcpy(dstAddrBytes, &dstAddrInt, sizeof(dstAddrBytes));
 
@@ -64,12 +62,10 @@ inline void makeUdpPacket(const IPTuple &t, unsigned char *udp) {
     udp[9] = 0x11; //declare next layer as udp
 
     uint32_t srcAddrInt = t.getV4Src();
-    //uint32_t srcAddrInt = pcpp::IPv4Address("0.0.0.0").toInt();
     unsigned char srcAddrBytes[4];
     memcpy(srcAddrBytes, &srcAddrInt, sizeof(srcAddrBytes));
 
     uint32_t dstAddrInt = t.getV4Dst();
-    //uint32_t dstAddrInt = pcpp::IPv4Address("237.2.3.4").toInt(); //will be marked as invalid depending on address
     unsigned char dstAddrBytes[4];
     memcpy(dstAddrBytes, &dstAddrInt, sizeof(dstAddrBytes));
 
@@ -105,12 +101,10 @@ inline void makeTcpPacket(const IPTuple &t, unsigned char *tcp) {
     tcp[9] = 0x06; //declare next layer as TCP
 
     uint32_t srcAddrInt = t.getV4Src();
-    //uint32_t srcAddrInt = pcpp::IPv4Address("0.0.0.0").toInt();
     unsigned char srcAddrBytes[4];
     memcpy(srcAddrBytes, &srcAddrInt, sizeof(srcAddrBytes));
 
     uint32_t dstAddrInt = t.getV4Dst();
-    //uint32_t dstAddrInt = pcpp::IPv4Address("237.2.3.4").toInt(); //will be marked as invalid depending on address
     unsigned char dstAddrBytes[4];
     memcpy(dstAddrBytes, &dstAddrInt, sizeof(dstAddrBytes));
 
@@ -183,16 +177,16 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     filter::AndFilter myFilter{};
     parseFilter(filterString, myFilter);
     std::cout << "Applying Filter: " << myFilter.toString() << std::endl;
 
-    //TODO set timerange filterString from query
-    auto start = std::chrono::high_resolution_clock::now();
-
     filter::TimeRangeFilter timeRangeFilter = filter::makeTimerangeFilter(filterString);//  timeRangeFilter{};
     std::cout << timeRangeFilter.toString() << std::endl;
-    //TODO fix bug if timerange filter is applied with or dont remove file (eg: udp || time>5) in this case also time < 5 needs to be searched
+
+    auto end0 = std::chrono::high_resolution_clock::now();
 
 
     for (size_t i = 0; i < files.size();) {
@@ -224,14 +218,14 @@ int main(int argc, char *argv[]) {
             metaBuckets.push_back(b);
         }
     }
-    std::vector<CompressedBucket> compressedBuckets{};
 
+    std::vector<CompressedBucket> compressedBuckets{};
     //TODO check if compressedbucket contains ip address if queried
     for (auto m : metaBuckets) {
         for (const CompressedBucket &c : m.getStorage()) {
-            //if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
-            compressedBuckets.push_back(c);
-            //}
+            if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
+                compressedBuckets.push_back(c);
+            }
         }
     }
 
@@ -296,8 +290,10 @@ int main(int argc, char *argv[]) {
     auto end2 = std::chrono::high_resolution_clock::now();
     auto durationNoWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start).count();
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
+    auto durationParseFilter = std::chrono::duration_cast<std::chrono::nanoseconds>(end0 - start).count();
 
     std::cout << "\nPacket Count: " << packetCounter << std::endl;
+    std::cout<< "Filter Parsing Duration: "<<durationParseFilter<<"\n";
     if (packetCounter != 0) {
         std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
                   << durationNoWrite / packetCounter << "; Packets per second: "
