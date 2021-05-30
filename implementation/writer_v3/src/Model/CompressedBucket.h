@@ -319,6 +319,13 @@ public:
         return this->dict;
     }
 
+    std::vector<uint32_t> getIpAddresses()const{
+        std::vector<uint32_t>ret = this->dict;
+        ret.push_back(firstEntry.v4Src);
+        ret.push_back(firstEntry.v4Dst);
+        return ret;
+    }
+
     size_t size() {
         return hasFirst ? entries.size() + 1 : 0;
     }

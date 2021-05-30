@@ -220,7 +220,7 @@ namespace filter {
         }
 
         std::string toString() override {
-            return "SrcPortFilter " + std::string(operatorType[op]) + std::to_string(port);
+            return "port.src " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -251,7 +251,7 @@ namespace filter {
         }
 
         std::string toString() override {
-            return "DstPortFilter: " + std::string(operatorType[op]) + std::to_string(port);
+            return "port.dst " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -266,7 +266,7 @@ namespace filter {
         }
 
         std::string toString() override {
-            return "PortFilter";
+            return "port " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -370,12 +370,13 @@ namespace filter {
         }
     };
 
-    class TimeRangeFilter { //checks if the time range overlaps with queried time range
+    //checks if the time range overlaps with queried time range
+    class TimeRangePreFilter {
     private:
         uint64_t from;
         uint64_t to;
     public:
-        TimeRangeFilter() {
+        TimeRangePreFilter() {
             from = 0;
             to = 0;
         }
@@ -402,6 +403,76 @@ namespace filter {
         }
     };
 
+    //checks if IP address is in queried IpVector
+    class IpPreFilter{
+        std::vector<uint32_t>equalTo;
+        std::vector<uint32_t>greaterThan;
+        std::vector<uint32_t>lessThan;
+    public:
+        IpPreFilter(){
+            equalTo = {};
+            greaterThan = {};
+            lessThan = {};
+        }
+        void addEqual(uint32_t addr){
+            equalTo.push_back(addr);
+        }
+        void addGreaterThan(uint32_t addr){
+            greaterThan.push_back(addr);
+        }
+        void addLessThan(uint32_t addr){
+            lessThan.push_back(addr);
+        }
+        bool apply(const std::vector<uint32_t>& addresses){
+            for(uint32_t equalAddr : equalTo){
+                //check if IP address
+                if(std::find(addresses.begin(), addresses.end(), equalAddr) != addresses.end()){
+                    return true;
+                }
+            }
+
+            for(uint32_t greaterThanAddr : greaterThan){
+                pcpp::IPv4Address test(greaterThanAddr);
+                if(std::find_if(addresses.begin(), addresses.end(), [&greaterThanAddr](const uint32_t& val){
+                    return val>=greaterThanAddr;
+                }) != greaterThan.end()){
+                    return true;
+                }
+            }
+
+            for(uint32_t lessThanAddr : lessThan){
+                if(std::find_if(addresses.begin(), addresses.end(), [&lessThanAddr](const uint32_t& val){
+                    return val>=lessThanAddr;
+                }) != greaterThan.end()){
+                    return true;
+                }
+            }
+            //if no IP addresses are set return true;
+            if(equalTo.empty() && greaterThan.empty() && lessThan.empty()){
+                return true;
+            }else{
+                return false;
+            }
+        }
+
+        std::string toString(){
+            std::string ret{};
+            ret+= "equal: ";
+            for(auto x : equalTo){
+                ret += std::to_string(x) + " " ;
+            }
+            ret += " greater: ";
+            for(auto x : greaterThan){
+                ret += std::to_string(x) + " " ;
+            }
+            ret += " less: ";
+            for(auto x : lessThan){
+                ret += std::to_string(x) + " " ;
+            }
+            return ret;
+        }
+
+    };
 //TODO probably recursive parsing with parentheses would be better
 //right now looking for operators first, then identifying the filter types from left to right
 //eg ip.addr == 10.0.0.6 || ip.addr == 212.199.202.9 && udp
@@ -420,6 +491,9 @@ namespace filter {
 //ip.src
 //ip.dst
 //ip.addr
+//port
+//port.src
+//port.dst
 
 //COMPARISON
 // >
@@ -437,7 +511,7 @@ namespace filter {
 //language looks like this ([TYPE] [COMPARISON] [VALUE] [LOGICALOP])*
 
     static const std::vector<std::string> filterType = {
-            "frame.time", "frame.len", "proto", "ip.src", "ip.dst", "ip.addr"
+            "frame.time", "frame.len", "proto", "ip.src", "ip.dst", "ip.addr", "port", "port.src", "port.dst"
     };
 
 //expects a string like this: Oct 15, 2013 16:00:00" and converts it to timeval, microseconds are set to 0
@@ -574,23 +648,8 @@ namespace filter {
         return commands;
     }
 
-    uint64_t getMaxTime(const std::string &filterString) {
-        std::vector<std::string> commands = prepareCommands(filterString);
-        uint64_t maxTime = 0;
-        for (size_t i = 0; i < commands.size(); ++i) {
-            if (commands.at(i) == "frame.time") {
-                struct timeval t = stringToTimeval(commands.at(i + 2));
-                uint64_t temp = t.tv_sec * 1000000 + t.tv_usec;
-                if (temp > maxTime) {
-                    maxTime = temp;
-                }
-            }
-        }
-        return maxTime;
-    }
-
-    TimeRangeFilter makeTimerangeFilter(const std::string &filterString) {
-        TimeRangeFilter ret{};
+    TimeRangePreFilter makeTimeRangePreFilter(const std::string &filterString) {
+        TimeRangePreFilter ret{};
 
         std::vector<std::string> commands = prepareCommands(filterString);
         uint64_t maxTime = 0;
@@ -677,6 +736,30 @@ namespace filter {
         return ret;
     }
 
+    IpPreFilter makeIpPreFilter(const std::string &filterString){
+        IpPreFilter ret{};
+        std::vector<std::string> commands = prepareCommands(filterString);
+
+        for (size_t i = 0 ; i < commands.size(); ++i){
+            if(commands.at(i) == "ip.addr" || commands.at(i) == "ip.src" || commands.at(i) == "ip.dst"){
+                uint32_t addr = pcpp::IPv4Address(commands.at(i+2)).toInt();
+                if(commands.at(i+1) == "=="){
+                    ret.addEqual(addr);
+                }else if(commands.at(i+1) == "<" || commands.at(i+1) == "<="){
+                    std::cout<< "WARNING: comparison operator for IP addresses might work different than expected!\n";
+                    ret.addLessThan(addr);
+                }else if(commands.at(i+1) == ">" || commands.at(i+1) == ">="){
+                    std::cout<< "WARNING: comparison operator for IP addresses might work different than expected!\n";
+                    ret.addGreaterThan(addr);
+                }else{
+                    std::cout<<"must not happen!\n";
+                    assert(false);
+                }
+            }
+        }
+        return ret;
+    }
+
     void parseFilter(const std::string &filterString, AndFilter &filter) {
         std::vector<std::string> commands = prepareCommands(filterString);
         //commands = reverseCommandVector(commands);     //reverse vector to make it a left to right binding query language (does it make sense?)
@@ -717,6 +800,15 @@ namespace filter {
                     break;
                 case 5:
                     typeFilter = new IPFilter(pcpp::IPv4Address(value).toInt(), op);
+                    break;
+                case 6:
+                    typeFilter = new PortFilter(std::stoi(value), op);
+                    break;
+                case 7:
+                    typeFilter = new SrcPortFilter(std::stoi(value), op);
+                    break;
+                case 8:
+                    typeFilter = new DstPortFilter(std::stoi(value), op);
                     break;
                 default:
                     std::cout << "error at: " << command << std::endl;

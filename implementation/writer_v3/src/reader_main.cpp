@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
                 filePath.append("/");
             }
         }
-        if (strcmp(argv[i], "-f") == 0) { // filterString specified
+        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0 ) { // filterString specified
             ++i;
             while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
                 filterString.append(argv[i]).append(" ");
@@ -179,15 +179,13 @@ int main(int argc, char *argv[]) {
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    filter::AndFilter myFilter{};
-    parseFilter(filterString, myFilter);
-    std::cout << "Applying Filter: " << myFilter.toString() << std::endl;
+    filter::AndFilter query{};
+    filter::parseFilter(filterString, query);
+    std::cout << "Applying Filter: " << query.toString() << std::endl;
 
-    filter::TimeRangeFilter timeRangeFilter = filter::makeTimerangeFilter(filterString);//  timeRangeFilter{};
-    std::cout << timeRangeFilter.toString() << std::endl;
-
+    filter::TimeRangePreFilter timeRangePreFilter = filter::makeTimeRangePreFilter(filterString);
+    filter::IpPreFilter ipPreFilter = filter::makeIpPreFilter(filterString);
     auto end0 = std::chrono::high_resolution_clock::now();
-
 
     for (size_t i = 0; i < files.size();) {
         std::string name = files.at(i);
@@ -195,7 +193,7 @@ int main(int argc, char *argv[]) {
         uint8_t endIndex = name.find('.');
         uint64_t fromTime = std::stoll(name.substr(0, midIndex));
         uint64_t toTime = std::stoll(name.substr(midIndex + 1, endIndex - midIndex - 1));
-        if (!timeRangeFilter.apply(fromTime, toTime)) {
+        if (!timeRangePreFilter.apply(fromTime, toTime)) {
             files.erase(files.begin() + i);
         } else {
             ++i;
@@ -220,20 +218,22 @@ int main(int argc, char *argv[]) {
     }
 
     std::vector<CompressedBucket> compressedBuckets{};
-    //TODO check if compressedbucket contains ip address if queried
     for (auto m : metaBuckets) {
         for (const CompressedBucket &c : m.getStorage()) {
-            if (timeRangeFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt())) {
+            //TODO prevent copying of dictionary in c.getIpAddresses
+            if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) && ipPreFilter.apply(c.getIpAddresses())) {
                 compressedBuckets.push_back(c);
             }
         }
     }
 
+    std::cout<<"compressedBuckets.size(): "<<compressedBuckets.size()<<std::endl;
+
     //TODO filterString before conversion to IPTuple, make decision on Entries
     std::vector<IPTuple> tuples{};
     for (auto c : compressedBuckets) {
         std::vector<IPTuple> temp{};
-        c.getData(temp);
+        c.getData(temp); //TODO make getData with additional argument which is filter to decide before creating an IPtuple
         tuples.insert(tuples.end(), temp.begin(), temp.end());
     }
     auto end1 = std::chrono::high_resolution_clock::now();
@@ -243,10 +243,12 @@ int main(int argc, char *argv[]) {
             << 16); //second parameter is snapshot length, i think not relevant as set by caplen
     pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
     size_t packetCounter = 0;
+    size_t packetCounterFiltered = 0;
 
     for (IPTuple t : tuples) {
         ++packetCounter;
-        if (myFilter.apply(t)) {
+        if (query.apply(t)) {
+            ++packetCounterFiltered;
             if (t.getProtocol() == 6) {
                 unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
                 makeTcpPacket(t, tcpPacket);
@@ -292,7 +294,8 @@ int main(int argc, char *argv[]) {
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
     auto durationParseFilter = std::chrono::duration_cast<std::chrono::nanoseconds>(end0 - start).count();
 
-    std::cout << "\nPacket Count: " << packetCounter << std::endl;
+    std::cout << "\nQueried Packet Count: " << packetCounter << std::endl;
+    std::cout << "Filtered Packet Count: " << packetCounterFiltered << std::endl;
     std::cout<< "Filter Parsing Duration: "<<durationParseFilter<<"\n";
     if (packetCounter != 0) {
         std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
