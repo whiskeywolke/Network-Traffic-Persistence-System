@@ -340,7 +340,7 @@ namespace filter {
         TimeFilter(timeval time, Operator op) : time(time), op(op) {}
 
         bool apply(const IPTuple &t) override {
-            switch (op) {
+            switch (this->op) {
                 case equal:
                     return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) &&
                            t.getTvUsec() == static_cast<uint64_t>(time.tv_usec);
@@ -348,17 +348,21 @@ namespace filter {
                     return t.getTvSec() != static_cast<uint64_t>(time.tv_sec) ||
                            t.getTvUsec() != static_cast<uint64_t>(time.tv_usec);
                 case lessThan:
-                    return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) &&
-                           t.getTvUsec() < static_cast<uint64_t>(time.tv_usec);
+                    return t.getTvSec() < static_cast<uint64_t>(this->time.tv_sec) ||
+                            (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
+                            t.getTvUsec() < static_cast<uint64_t>(this->time.tv_usec));
                 case greaterThan:
-                    return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) &&
-                           t.getTvUsec() > static_cast<uint64_t>(time.tv_usec);
+                    return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) ||
+                           (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
+                            t.getTvUsec() > static_cast<uint64_t>(this->time.tv_usec));
                 case lessThanEqual:
-                    return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) &&
-                           t.getTvUsec() <= static_cast<uint64_t>(time.tv_usec);
+                    return t.getTvSec() <= static_cast<uint64_t>(time.tv_sec) ||
+                           (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
+                            t.getTvUsec() <= static_cast<uint64_t>(this->time.tv_usec));
                 case greaterThanEqual:
-                    return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) &&
-                           t.getTvUsec() >= static_cast<uint64_t>(time.tv_usec);
+                    return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) ||
+                           (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
+                            t.getTvUsec() >= static_cast<uint64_t>(this->time.tv_usec));
                 default:
                     return false;
             }
