@@ -180,6 +180,27 @@ filterCompressedBuckets(const filter::TimeRangePreFilter &timeRangePreFilter, co
     filterCompressedBucketsFinished = true;
 }
 
+void readAndFilter(const std::string &filePath, const std::vector<std::string> &files, const filter::TimeRangePreFilter &timeRangePreFilter, const filter::IpPreFilter &ipPreFilter,moodycamel::ConcurrentQueue<CompressedBucket> &outQueue){
+    for (const auto &file : files) {
+        MetaBucket m;
+        std::string fileName = filePath + file;
+        std::ifstream ifs(fileName);
+        boost::archive::binary_iarchive ia(ifs);
+        ia >> m;
+        std::vector<CompressedBucket> temp{};
+        temp.reserve(100000);
+        for (const CompressedBucket &c : m.getStorage()) {
+            if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
+                ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
+                temp.push_back(c);
+            }
+        }
+        outQueue.enqueue_bulk(temp.begin(),temp.size());
+    }
+    filterCompressedBucketsFinished = true;
+}
+
+
 void filterIpTuples(const filter::AndFilter &filter, moodycamel::ConcurrentQueue<CompressedBucket> &inQueue,
                     moodycamel::ConcurrentQueue<IPTuple> &outQueue) {
     while (!filterCompressedBucketsFinished || inQueue.size_approx() != 0) {
@@ -320,11 +341,14 @@ int main(int argc, char *argv[]) {
     moodycamel::ConcurrentQueue<CompressedBucket> compressedBuckets2(50000);
     moodycamel::ConcurrentQueue<IPTuple> ipTuples(500000);
 
-    std::thread readerThread{readFiles, std::ref(filePath), std::ref(files), std::ref(metaBuckets2)};
-    readerThread.join(); //queue is very slow for huge files TODO batch enqeuing of compressed buckets
+//    std::thread readerThread{readFiles, std::ref(filePath), std::ref(files), std::ref(metaBuckets2)};
+//    readerThread.join(); //queue is very slow for huge files TODO batch enqeuing of compressed buckets
 
-    std::thread filterCBThread{filterCompressedBuckets, std::ref(timeRangePreFilter), std::ref(ipPreFilter),
-                               std::ref(metaBuckets2), std::ref(compressedBuckets2)};
+//    std::thread filterCBThread{filterCompressedBuckets, std::ref(timeRangePreFilter), std::ref(ipPreFilter),
+//                               std::ref(metaBuckets2), std::ref(compressedBuckets2)};
+
+    std::thread dualThread{readAndFilter, std::ref(filePath), std::ref(files), std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets2)};
+
     std::thread filterIpThread{filterIpTuples, std::ref(query), std::ref(compressedBuckets2), std::ref(ipTuples)};
 
     auto end1 = std::chrono::high_resolution_clock::now();
@@ -333,7 +357,8 @@ int main(int argc, char *argv[]) {
     std::thread writerThread{writeToPcapFile, std::ref(filePath), std::ref(fileName), std::ref(ipTuples)};
 
 
-    filterCBThread.join();
+    dualThread.join();
+    //filterCBThread.join();
     filterIpThread.join();
     writerThread.join();
 
