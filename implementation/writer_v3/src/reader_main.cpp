@@ -14,6 +14,15 @@
 #include "Converter/Converter.h"
 #include "ConcurrentQueue/concurrentqueue.h"
 
+#define MINICMPHEADERLENGTH 20
+#define MINICMPPKTLENGTH 21
+
+#define MINUDPHEADERLENGTH 24
+#define MINUDPPKTLENGTH 26
+
+#define MINTCPHEADERLENGTH 24
+#define MINTCPPKTLENGTH 28
+
 
 std::vector<std::string> getFiles(const char *path) {
     struct dirent *entry;
@@ -135,119 +144,71 @@ inline void makeTcpPacket(const IPTuple &t, unsigned char *tcp) {
     tcp[23] = dstPortBytes[1];
 }
 
+std::atomic<bool> readingFinished{false};
+std::atomic<bool> filterCompressedBucketsFinished{false};
+std::atomic<bool> filterIpTuplesFinished{false};
+std::atomic<bool> writePcapFile{false};
 
-#define MINICMPHEADERLENGTH 20
-#define MINICMPPKTLENGTH 21
-
-#define MINUDPHEADERLENGTH 24
-#define MINUDPPKTLENGTH 26
-
-#define MINTCPHEADERLENGTH 24
-#define MINTCPPKTLENGTH 28
-
-
-int main(int argc, char *argv[]) {
-//    std::string filePath = "/home/ubuntu/testfiles/dir-1-3/";  // (1031565 packets)  (with payload)
-//    std::string filePath = "/home/ubuntu/testfiles/dir-1-6/";  // (27013768 packets)  (no payload)
-//    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
-//    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
-    std::string filePath = "./";//default directory
-    std::string filterString{};
-
-    for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-i") == 0) { // input directory specified
-            filePath = argv[++i];
-            if (filePath.at(filePath.size() - 1) != '/') {
-                filePath.append("/");
-            }
-        }
-        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0 ) { // filterString specified
-            ++i;
-            while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
-                filterString.append(argv[i]).append(" ");
-                ++i;
-            }
-        }
+void readFiles(const std::string &filePath, const std::vector<std::string> &files,
+               moodycamel::ConcurrentQueue<MetaBucket> &outQueue) {
+    for (const auto &file : files) {
+        MetaBucket b;
+        std::string fileName = filePath + file;
+        std::ifstream ifs(fileName);
+        boost::archive::binary_iarchive ia(ifs);
+        ia >> b;
+        outQueue.enqueue(b);
     }
-    std::cout << "Reading from directory: " + filePath << std::endl;
+    readingFinished = true;
+}
 
-    auto files = getFiles(filePath.c_str());
-    if (files.empty()) {
-        std::cout << "No Files found - exiting\n";
-        exit(0);
-    }
-
-    auto start = std::chrono::high_resolution_clock::now();
-
-    filter::AndFilter query{};
-    filter::parseFilter(filterString, query);
-    std::cout << "Applying Filter: " << query.toString() << std::endl;
-
-    filter::TimeRangePreFilter timeRangePreFilter = filter::makeTimeRangePreFilter(filterString);
-    filter::IpPreFilter ipPreFilter = filter::makeIpPreFilter(filterString);
-    auto end0 = std::chrono::high_resolution_clock::now();
-
-    for (size_t i = 0; i < files.size();) {
-        std::string name = files.at(i);
-        uint8_t midIndex = name.find('-');
-        uint8_t endIndex = name.find('.');
-        uint64_t fromTime = std::stoll(name.substr(0, midIndex));
-        uint64_t toTime = std::stoll(name.substr(midIndex + 1, endIndex - midIndex - 1));
-        if (!timeRangePreFilter.apply(fromTime, toTime)) {
-            files.erase(files.begin() + i);
-        } else {
-            ++i;
-        }
-    }
-
-    std::cout << "Reading from Files: " << "\n";
-    for (auto x : files) {
-        std::cout << "  " << x << "\n";
-    }
-
-    std::vector<MetaBucket> metaBuckets{};
-    {
-        for (const auto &file : files) {
-            MetaBucket b;
-            std::string fileName = filePath + file;
-            std::ifstream ifs(fileName);
-            boost::archive::binary_iarchive ia(ifs);
-            ia >> b;
-            metaBuckets.push_back(b);
-        }
-    }
-
-    std::vector<CompressedBucket> compressedBuckets{};
-    for (auto m : metaBuckets) {
-        for (const CompressedBucket &c : m.getStorage()) {
-            if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) && ipPreFilter.apply(c.getDict(),c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
-                compressedBuckets.push_back(c);
+void
+filterCompressedBuckets(const filter::TimeRangePreFilter &timeRangePreFilter, const filter::IpPreFilter &ipPreFilter,
+                        moodycamel::ConcurrentQueue<MetaBucket> &inQueue,
+                        moodycamel::ConcurrentQueue<CompressedBucket> &outQueue) {
+    while (!readingFinished || inQueue.size_approx() != 0) {
+        MetaBucket m;
+        if (inQueue.try_dequeue(m)) {
+            for (const CompressedBucket &c : m.getStorage()) {
+                if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
+                    ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
+                    outQueue.enqueue(c);
+                }
             }
         }
     }
+    filterCompressedBucketsFinished = true;
+}
 
-    std::cout<<"compressedBuckets.size(): "<<compressedBuckets.size()<<std::endl;
-
-    //TODO filterString before conversion to IPTuple, make decision on Entries
-    std::vector<IPTuple> tuples{};
-    for (auto c : compressedBuckets) {
-        std::vector<IPTuple> temp{};
-        c.getData(temp); //TODO make getData with additional argument which is filter to decide before creating an IPtuple
-        tuples.insert(tuples.end(), temp.begin(), temp.end());
+void filterIpTuples(const filter::AndFilter &filter, moodycamel::ConcurrentQueue<CompressedBucket> &inQueue,
+                    moodycamel::ConcurrentQueue<IPTuple> &outQueue) {
+    while (!filterCompressedBucketsFinished || inQueue.size_approx() != 0) {
+        CompressedBucket c;
+        if (inQueue.try_dequeue(c)) {
+            std::vector<IPTuple> decompressed{};
+            c.getData(decompressed);
+            for (const IPTuple &t : decompressed) {
+                if (filter.apply(t)) {
+                    outQueue.enqueue(t);
+                }
+            }
+        }
     }
-    auto end1 = std::chrono::high_resolution_clock::now();
+    filterIpTuplesFinished = true;
+}
+
+void writeToPcapFile(const std::string &filePath, const std::string &fileName,
+                     moodycamel::ConcurrentQueue<IPTuple> &inQueue) {
+
+    pcap_t *handle = pcap_open_dead(DLT_RAW,
+                                    1 << 16); //second parameter is snapshot length, not relevant as set by caplen
+    pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + fileName).c_str());
 
 
-    pcap_t *handle = pcap_open_dead(DLT_RAW, 1
-            << 16); //second parameter is snapshot length, i think not relevant as set by caplen
-    pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + "cap.pcap").c_str());
-    size_t packetCounter = 0;
-    size_t packetCounterFiltered = 0;
+    while (!filterIpTuplesFinished || inQueue.size_approx() != 0) {
+        IPTuple t;
 
-    for (IPTuple t : tuples) {
-        ++packetCounter;
-        if (query.apply(t)) {
-            ++packetCounterFiltered;
+        if (inQueue.try_dequeue(t)) {
             if (t.getProtocol() == 6) {
                 unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
                 makeTcpPacket(t, tcpPacket);
@@ -287,22 +248,101 @@ int main(int argc, char *argv[]) {
         }
     }
     pcap_dump_close(dumper);
+    writePcapFile = true;
+}
+
+
+int main(int argc, char *argv[]) {
+//    std::string filePath = "/home/ubuntu/testfiles/dir-1-3/";  // (1031565 packets)  (with payload)
+//    std::string filePath = "/home/ubuntu/testfiles/dir-1-6/";  // (27013768 packets)  (no payload)
+//    std::string filePath = "/home/ubuntu/testfiles/dir-6-7/";  // (107555567 packets) (no payload)
+//    std::string filePath = "/home/ubuntu/testfiles/dir-mini/";  // (107555567 packets) (no payload)
+
+
+    /// parsing arguments
+    std::string filePath = "./";//default directory
+    std::string filterString{};
+
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-i") == 0) { // input directory specified
+            filePath = argv[++i];
+            if (filePath.at(filePath.size() - 1) != '/') {
+                filePath.append("/");
+            }
+        }
+        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0) { // filterString specified
+            ++i;
+            while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
+                filterString.append(argv[i]).append(" ");
+                ++i;
+            }
+        }
+    }
+    std::cout << "Reading from directory: " + filePath << std::endl;
+
+
+    ///reading files form directory
+    auto files = getFiles(filePath.c_str());
+    if (files.empty()) {
+        std::cout << "No Files found - exiting\n";
+        exit(0);
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    filter::AndFilter query{};
+    filter::parseFilter(filterString, query);
+    std::cout << "Applying Filter: " << query.toString() << std::endl;
+
+    filter::TimeRangePreFilter timeRangePreFilter = filter::makeTimeRangePreFilter(filterString);
+    filter::IpPreFilter ipPreFilter = filter::makeIpPreFilter(filterString);
+
+    ///applying prefilter to only read neccessary files
+    for (size_t i = 0; i < files.size();) {
+        std::string name = files.at(i);
+        uint8_t midIndex = name.find('-');
+        uint8_t endIndex = name.find('.');
+        uint64_t fromTime = std::stoll(name.substr(0, midIndex));
+        uint64_t toTime = std::stoll(name.substr(midIndex + 1, endIndex - midIndex - 1));
+        if (!timeRangePreFilter.apply(fromTime, toTime)) {
+            files.erase(files.begin() + i);
+        } else {
+            ++i;
+        }
+    }
+
+    std::cout << "Reading from Files: " << "\n";
+    for (auto x : files) {
+        std::cout << "  " << x << "\n";
+    }
+
+    moodycamel::ConcurrentQueue<MetaBucket> metaBuckets2(500);
+    moodycamel::ConcurrentQueue<CompressedBucket> compressedBuckets2(50000);
+    moodycamel::ConcurrentQueue<IPTuple> ipTuples(500000);
+
+    std::thread readerThread{readFiles, std::ref(filePath), std::ref(files), std::ref(metaBuckets2)};
+    readerThread.join(); //queue is very slow for huge files TODO batch enqeuing of compressed buckets
+
+    std::thread filterCBThread{filterCompressedBuckets, std::ref(timeRangePreFilter), std::ref(ipPreFilter),
+                               std::ref(metaBuckets2), std::ref(compressedBuckets2)};
+    std::thread filterIpThread{filterIpTuples, std::ref(query), std::ref(compressedBuckets2), std::ref(ipTuples)};
+
+    auto end1 = std::chrono::high_resolution_clock::now();
+
+    std::string fileName = query.toString() + ".pcap";
+    std::thread writerThread{writeToPcapFile, std::ref(filePath), std::ref(fileName), std::ref(ipTuples)};
+
+
+    filterCBThread.join();
+    filterIpThread.join();
+    writerThread.join();
 
     auto end2 = std::chrono::high_resolution_clock::now();
     auto durationNoWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start).count();
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
-    auto durationParseFilter = std::chrono::duration_cast<std::chrono::nanoseconds>(end0 - start).count();
 
-    std::cout << "\nQueried Packet Count: " << packetCounter << std::endl;
-    std::cout << "Filtered Packet Count: " << packetCounterFiltered << std::endl;
-    std::cout<< "Filter Parsing Duration: "<<durationParseFilter<<"\n";
-    if (packetCounter != 0) {
-        std::cout << "Duration no write: \t\t" << durationNoWrite << " nanoseconds, Handling time per packet: "
-                  << durationNoWrite / packetCounter << "; Packets per second: "
-                  << 1000000000 / (durationNoWrite / packetCounter) << "\n";
-        std::cout << "Duration w/ write: \t\t" << durationWrite << " nanoseconds, Handling time per packet: "
-                  << durationWrite / packetCounter << "; Packets per second: "
-                  << 1000000000 / (durationWrite / packetCounter) << "\n";
-    }
+    std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
+    std::cout << "\nduration w/ write: \t\t" << durationWrite << " nanoseconds\n";
+
     return 0;
 }

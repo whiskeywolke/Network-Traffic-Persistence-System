@@ -38,9 +38,9 @@ namespace filter {
 
     class Filter {
     public:
-        virtual bool apply(const IPTuple &t) = 0;
+        virtual bool apply(const IPTuple &t) const = 0;
 
-        virtual std::string toString() = 0;
+        virtual std::string toString() const = 0;
     };
 
     class BoolFilter : public Filter {
@@ -58,7 +58,7 @@ namespace filter {
             filters.push_back(filter);
         }
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             for (auto f : filters) {
                 if (!f->apply(t)) {
                     return false;
@@ -67,7 +67,7 @@ namespace filter {
             return true;
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             std::string s = "(";
             for (size_t i = 0; i < filters.size(); ++i) {
                 if (i > 0) {
@@ -91,7 +91,7 @@ namespace filter {
             filters.push_back(filter);
         }
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             if (filters.empty()) {
                 return true;
             }
@@ -103,7 +103,7 @@ namespace filter {
             return false;
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             std::string s = "(";
             for (size_t i = 0; i < filters.size(); ++i) {
                 if (i > 0) {
@@ -123,7 +123,7 @@ namespace filter {
     public:
         SrcIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getV4Src() == addr;
@@ -142,7 +142,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "ip.src " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
@@ -154,7 +154,7 @@ namespace filter {
     public:
         DstIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getV4Dst() == addr;
@@ -173,7 +173,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "ip.dst " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
@@ -184,11 +184,11 @@ namespace filter {
     public:
         IPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             return SrcIPFilter{addr, op}.apply(t) || DstIPFilter{addr, op}.apply(t);
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "ip.addr " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
@@ -200,7 +200,7 @@ namespace filter {
     public:
         SrcPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getPortSrc() == port;
@@ -219,7 +219,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "port.src " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
@@ -231,7 +231,7 @@ namespace filter {
     public:
         DstPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getPortDst() == port;
@@ -250,7 +250,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "port.dst " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
@@ -261,11 +261,11 @@ namespace filter {
     public:
         PortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             return SrcPortFilter{port, op}.apply(t) || DstPortFilter{port, op}.apply(t);
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "port " + std::string(operatorType[op]) + " " + std::to_string(port);
         }
     };
@@ -277,7 +277,7 @@ namespace filter {
     public:
         ProtocolFilter(uint8_t protocolId, Operator op) : protocolId(protocolId), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getProtocol() == protocolId;
@@ -296,7 +296,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "proto " + std::string(operatorType[op]) + " " + std::to_string(protocolId);
         }
     };
@@ -308,7 +308,7 @@ namespace filter {
     public:
         LengthFilter(uint16_t length, Operator op) : length(length), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getLength() == length;
@@ -327,7 +327,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "length " + std::string(operatorType[op]) + " " + std::to_string(length);
         }
     };
@@ -339,7 +339,7 @@ namespace filter {
     public:
         TimeFilter(timeval time, Operator op) : time(time), op(op) {}
 
-        bool apply(const IPTuple &t) override {
+        bool apply(const IPTuple &t) const override {
             switch (this->op) {
                 case equal:
                     return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) &&
@@ -368,7 +368,7 @@ namespace filter {
             }
         }
 
-        std::string toString() override {
+        std::string toString() const override {
             return "frame.time: " + std::string(operatorType[op]) + " " + std::to_string(time.tv_sec) + " " +
                    std::to_string(time.tv_usec);
         }
