@@ -151,9 +151,13 @@ std::atomic<bool> filterCompressedBucketsFinished{false};
 std::atomic<bool> filterIpTuplesFinished{false};
 
 
-void readAndFilter(std::vector<bool>* status, const int& threadID, const std::string &filePath, std::vector<std::string>::const_iterator startIt, const std::vector<std::string>::const_iterator& endIt, const filter::TimeRangePreFilter &timeRangePreFilter, const filter::IpPreFilter &ipPreFilter, moodycamel::ConcurrentQueue<CompressedBucket> &outQueue){
+void readAndFilter(std::vector<bool> &status, const int &threadID, const std::string &filePath,
+                   std::vector<std::string>::const_iterator startIt,
+                   const std::vector<std::string>::const_iterator &endIt,
+                   const filter::TimeRangePreFilter &timeRangePreFilter, const filter::IpPreFilter &ipPreFilter,
+                   moodycamel::ConcurrentQueue<CompressedBucket> &outQueue) {
 
-    for(;startIt<endIt;++startIt) {
+    for (; startIt < endIt; ++startIt) {
         MetaBucket m;
         std::string fileName = filePath + *startIt;
         std::ifstream ifs(fileName);
@@ -164,29 +168,33 @@ void readAndFilter(std::vector<bool>* status, const int& threadID, const std::st
         for (const CompressedBucket &c : m.getStorage()) {
             if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
                 ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
-                temp.push_back(c);
+                temp.emplace_back(c);
             }
         }
         outQueue.enqueue_bulk(temp.begin(), temp.size());
     }
     {
         std::lock_guard<std::mutex> lock(readerStatusMutex);
-        status->at(threadID) = true;
-        if (std::find(status->begin(), status->end(), false) ==
-            status->end()) {  //false cannot be found -> all other threads are finished
+        status.at(threadID) = true;
+        if (std::find(status.begin(), status.end(), false) ==
+            status.end()) {  //false cannot be found -> all other threads are finished
             filterCompressedBucketsFinished = true;
         }
     }
 
 }
 
-void filterIpTuples(std::vector<bool>* status, const int& threadID, const filter::AndFilter &filter, moodycamel::ConcurrentQueue<CompressedBucket> &inQueue, moodycamel::ConcurrentQueue<IPTuple> &outQueue) {
+void filterIpTuples(std::vector<bool> &status, const int &threadID, const filter::AndFilter &filter,
+                    moodycamel::ConcurrentQueue<CompressedBucket> &inQueue,
+                    moodycamel::ConcurrentQueue<IPTuple> &outQueue) {
+
     while (!filterCompressedBucketsFinished || inQueue.size_approx() != 0) {
         CompressedBucket c;
+        std::vector<IPTuple> temp{};
+
         if (inQueue.try_dequeue(c)) {
             std::vector<IPTuple> decompressed{};
             c.getData(decompressed);
-            std::vector<IPTuple> temp{};
             temp.reserve(decompressed.size());
             for (const IPTuple &t : decompressed) {
                 if (filter.apply(t)) {
@@ -194,25 +202,26 @@ void filterIpTuples(std::vector<bool>* status, const int& threadID, const filter
                 }
             }
             outQueue.enqueue_bulk(temp.begin(), temp.size());
+            temp.clear();
         }
     }
     {
         std::lock_guard<std::mutex> lock(filterStatusMutex);
-        status->at(threadID) = true;
-        if (std::find(status->begin(), status->end(), false) ==
-            status->end()) {  //false cannot be found -> all other threads are finished
+        status.at(threadID) = true;
+        if (std::find(status.begin(), status.end(), false) ==
+            status.end()) {  //false cannot be found -> all other threads are finished
             filterIpTuplesFinished = true;
         }
     }
 }
 
-void writeToPcapFile(const std::string &filePath, const std::string &fileName,
+void writeToPcapFile(const std::string filePath, const std::string fileName,
                      moodycamel::ConcurrentQueue<IPTuple> &inQueue) {
 
     pcap_t *handle = pcap_open_dead(DLT_RAW,
                                     1 << 16); //second parameter is snapshot length, not relevant as set by caplen
-    pcap_dumper_t *dumper = pcap_dump_open(handle, (filePath + fileName).c_str());
-
+    std::string completeName = (filePath + fileName);
+    pcap_dumper_t *dumper = pcap_dump_open(handle, completeName.c_str());
 
     while (!filterIpTuplesFinished || inQueue.size_approx() != 0) {
         IPTuple t;
@@ -259,42 +268,55 @@ void writeToPcapFile(const std::string &filePath, const std::string &fileName,
     pcap_dump_close(dumper);
 }
 
-inline void join(std::vector<std::thread> &vector) {
-    for (std::thread &t : vector) {
-        t.join();
+inline void join(std::vector<std::thread> &threads) {
+    if (!threads.empty()) {
+        for (std::thread &t : threads) {
+            t.join();
+        }
     }
 }
 
-#define READER_THREADS 3
-#define FILTER_THREADS 3
+#define READER_THREADS 4
+#define FILTER_THREADS 4
 
 int main(int argc, char *argv[]) {
     /// parsing arguments
-    std::string filePath = "./";//default directory
+    std::string inFilePath = "./";//default directory
+    std::string outFilePath = "./";//default directory
     std::string filterString{};
-    bool writePcap = true;
+    bool writePcap = false;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-i") == 0) { // input directory specified
-            filePath = argv[++i];
-            if (filePath.at(filePath.size() - 1) != '/') {
-                filePath.append("/");
+            inFilePath = argv[++i];
+            if (inFilePath.at(inFilePath.size() - 1) != '/') {
+                inFilePath.append("/");
             }
-        }
-        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0) { // filterString specified
+            if (outFilePath == "./") { //by default write to same directory as it is read from
+                outFilePath = inFilePath;
+            }
+        } else if (strcmp(argv[i], "-o") == 0) {
+            outFilePath = argv[++i];
+            if (outFilePath.at(outFilePath.size() - 1) != '/') {
+                outFilePath.append("/");
+            }
+        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0) { // filterString specified
             ++i;
             while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
                 filterString.append(argv[i]).append(" ");
                 ++i;
             }
+            --i;
+        } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "-pcap") == 0) { // filterString specified
+            writePcap = true;
         }
-   //     if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "-pcap") == 0) { // filterString specified
-   //         writePcap = true;
-   //     }
     }
-    std::cout << "Reading from directory: " + filePath << std::endl;
+    std::cout << "Reading from directory: " + inFilePath << std::endl;
+    if (writePcap) {
+        std::cout << "Writing to Pcap file at: " << outFilePath << std::endl;
+    }
 
     ///reading files form directory
-    auto files = getFiles(filePath.c_str());
+    auto files = getFiles(inFilePath.c_str());
     if (files.empty()) {
         std::cout << "No Files found - exiting\n";
         exit(0);
@@ -324,30 +346,32 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    moodycamel::ConcurrentQueue<MetaBucket> metaBuckets2(500);
-    moodycamel::ConcurrentQueue<CompressedBucket> compressedBuckets2(50000);
-    moodycamel::ConcurrentQueue<IPTuple> ipTuples(500000);
+    moodycamel::ConcurrentQueue<CompressedBucket> compressedBuckets2(2000000);
+    moodycamel::ConcurrentQueue<IPTuple> ipTuples(1000000);
 
     std::vector<std::thread> readers{};
     readers.reserve(files.size());
     size_t readingThreadCount = READER_THREADS;
     ///prevents that more threads than files exist, in which case the threadcount is reduced
-    if(files.size() < readingThreadCount){
+    if (files.size() < readingThreadCount) {
         readingThreadCount = files.size();
     }
-    std::vector<bool> readerStatus(readingThreadCount,false);
+    std::vector<bool> readerStatus(readingThreadCount, false);
 
     ///splitting files among multiple threads
-    for(size_t i = 0; i < readingThreadCount; ++i){
-        if(i == 0){
+    for (size_t i = 0; i < readingThreadCount; ++i) {
+        if (i == 0) {
             std::vector<std::string>::const_iterator startIt = files.begin();
-            std::vector<std::string>::const_iterator endIt = files.begin() + files.size() % readingThreadCount + (files.size()/readingThreadCount);
-            readers.emplace_back(readAndFilter, &readerStatus, i, std::ref(filePath), startIt, endIt,
+            std::vector<std::string>::const_iterator endIt =
+                    files.begin() + files.size() % readingThreadCount + (files.size() / readingThreadCount);
+            readers.emplace_back(readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
                                  std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets2));
-        }else{
-            auto startIt    = files.begin() + files.size() % readingThreadCount + (i*(files.size()/readingThreadCount));
-            auto endIt      = files.begin() + files.size() % readingThreadCount + ((i+1)*(files.size()/readingThreadCount));
-            readers.emplace_back(readAndFilter, &readerStatus, i, std::ref(filePath), startIt, endIt,
+        } else {
+            auto startIt =
+                    files.begin() + files.size() % readingThreadCount + (i * (files.size() / readingThreadCount));
+            auto endIt =
+                    files.begin() + files.size() % readingThreadCount + ((i + 1) * (files.size() / readingThreadCount));
+            readers.emplace_back(readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
                                  std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets2));
         }
     }
@@ -355,21 +379,20 @@ int main(int argc, char *argv[]) {
 
     std::vector<std::thread> filters{};
     filters.reserve(FILTER_THREADS);
-    std::vector<bool> filterStatus(FILTER_THREADS,false);
-
-    for( int i = 0; i < FILTER_THREADS;++i){
+    std::vector<bool> filterStatus(FILTER_THREADS, false);
+    for (int i = 0; i < FILTER_THREADS; ++i) {
         filters.emplace_back(
-                std::thread{filterIpTuples, &filterStatus, i, std::ref(query), std::ref(compressedBuckets2),
+                std::thread{filterIpTuples, std::ref(filterStatus), i, std::ref(query), std::ref(compressedBuckets2),
                             std::ref(ipTuples)});
     }
 
 
     std::vector<std::thread> writers{};
-//    if(writePcap) {
+    if (writePcap) {
         writers.reserve(1);
         std::string fileName = query.toString() + ".pcap";
-        writers.emplace_back(std::thread{writeToPcapFile, std::ref(filePath), std::ref(fileName), std::ref(ipTuples)});
-//    }
+        writers.emplace_back(writeToPcapFile, outFilePath, fileName, std::ref(ipTuples));
+    }
 
     join(readers);
     join(filters);
@@ -383,7 +406,7 @@ int main(int argc, char *argv[]) {
     auto durationWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start).count();
 
     std::cout << "Read from Files: " << "\n";
-    for (const auto& x : files) {
+    for (const auto &x : files) {
         std::cout << "  " << x << "\n";
     }
 
