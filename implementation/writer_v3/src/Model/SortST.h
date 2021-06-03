@@ -10,11 +10,10 @@
 #include <mutex>
 #include <unordered_map>
 #include "../HashMap/robin_map.h"
-#include <boost/lockfree/queue.hpp>
-#include <tbb/concurrent_vector.h>
-#include <tbb/concurrent_hash_map.h>
 #include "../ConcurrentQueue/concurrentqueue.h"
-//Singleton Pattern
+
+#define BOOST_RESULT_OF_USE_DECLTYPE
+#include <boost/iterator/transform_iterator.hpp>
 
 class SortST {
 private:
@@ -45,9 +44,14 @@ public:
     // in certain time interval write to queue
     inline void
     flush(moodycamel::ConcurrentQueue<std::vector<IPTuple>> *queue) { //queue of vectors where each vector is sorted
+        auto value = [](const std::pair<uint32_t, std::vector<IPTuple>>& entry){ return entry.second; };
+        auto valueIt = boost::make_transform_iterator(map.begin(),value);
+        queue->enqueue_bulk(valueIt,map.size());
+/*
         for (const auto &entry : map) {
             queue->enqueue(entry.second);
         }
+*/
         map.clear();
     }
 

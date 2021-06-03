@@ -7,6 +7,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+#define BOOST_RESULT_OF_USE_DECLTYPE
+#include <boost/iterator/transform_iterator.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <pcapplusplus/PcapFileDevice.h>
@@ -89,11 +91,50 @@ void readPcapFile(const std::string &fileName, std::vector<bool> *status, int th
         exit(1);
     }
     reader->setFilter(getPredefinedFilterAsString());
-    pcpp::RawPacket temp;
     auto start = std::chrono::high_resolution_clock::now();
+
+    pcpp::RawPacket temp;
     while (reader->getNextPacket(temp)) {
         outQueue->enqueue(temp);
     }
+///wip
+/*
+    while(true){
+        pcpp::RawPacketVector segment{};
+        size_t count = reader->getNextPackets(segment, 1000);
+        if(count == 0){
+            break;
+        }else{
+            std::vector<pcpp::RawPacket> temp{};
+            std::vector<pcpp::RawPacket*>::iterator iterator = segment.begin();
+
+            temp.reserve(1000);
+            for(pcpp::RawPacket* rawPacket : segment){
+                temp.emplace_back(*rawPacket);
+            }
+            outQueue->enqueue_bulk(temp.begin(), temp.size());
+
+            const auto convert = [](pcpp::RawPacket* ptr){return ptr;};
+            const auto vc = [&]{
+                std::vector<pcpp::RawPacket>temp{segment.size()};
+                std::transform(segment.begin(), segment.end(), temp.begin(), convert);
+                return  temp;
+            }();
+
+            auto convert2 = [](pcpp::RawPacket* ptr){return ptr;};
+
+            auto valueIt = boost::make_transform_iterator(segment.begin(),convert2);
+
+            pcpp::RawPacket x = *valueIt;
+            pcpp::RawPacket y = *vc.begin();
+            for(const auto x : vc){
+
+            }
+            outQueue->enqueue_bulk(vc.begin(), segment.size());
+
+        }
+    }
+*/
     {
         std::lock_guard<std::mutex> lock(status_mutex);
         status->at(threadID) = true;
@@ -116,11 +157,22 @@ void convert(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueu
 
     auto start = std::chrono::high_resolution_clock::now();
     while (!readingFinished || inQueue->size_approx() != 0) {
-        if (inQueue->try_dequeue(input)) {
+/*        if (inQueue->try_dequeue(input)) {
             if (Converter::convert(input, ipTuple)) {
                 outQueue->enqueue(ipTuple);
             }
         }
+*/
+        std::vector<pcpp::RawPacket>tempIn{1000};
+        std::vector<IPTuple>tempOut{};
+        tempOut.reserve(1000);
+        size_t dequeued = inQueue->try_dequeue_bulk(tempIn.begin(),1000);
+        for(size_t i = 0; i < dequeued; ++i){
+            if (Converter::convert(tempIn.at(i), ipTuple)) {
+                tempOut.emplace_back(ipTuple);
+            }
+        }
+        outQueue->enqueue_bulk(tempOut.begin(), tempOut.size());
     }
     {
         std::lock_guard<std::mutex> lock(status_mutex);
@@ -140,10 +192,18 @@ void sortSingleThread(std::vector<bool> *status, int threadID, moodycamel::Concu
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
     while (!conversionFinished || inQueue->size_approx() != 0) {
+/*
         IPTuple t;
         if (inQueue->try_dequeue(t)) {
             while (!b.add(t)) {}
         }
+*/
+        std::vector<IPTuple>tempIn{1000};
+        size_t dequeued = inQueue->try_dequeue_bulk(tempIn.begin(), 1000);
+        for(size_t i = 0; i < dequeued; ++i){
+            while (!b.add(tempIn.at(i))) {}
+        }
+
         auto current_time = std::chrono::high_resolution_clock::now();
         if (std::chrono::duration_cast<std::chrono::seconds>(current_time - time_since_flush).count() >= 2) {
             b.flush(outQueue);
@@ -168,7 +228,28 @@ void compress(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQue
     auto start = std::chrono::high_resolution_clock::now();
 
     while (!sortingFinished || inQueue->size_approx() != 0) {
-        std::vector<IPTuple> sorted;
+        std::vector<std::vector<IPTuple>>tempIn{1000};
+        std::vector<CompressedBucket>tempOut{};
+        tempOut.reserve(1000);
+
+        size_t dequeued = inQueue->try_dequeue_bulk(tempIn.begin(), 1000);
+        for(size_t i = 0; i < dequeued; ++i){
+            CompressedBucket bucket;
+            for(const IPTuple &ipTuple : tempIn.at(i)){
+                if (!bucket.add(ipTuple)) {//now bucket is full replace with new one & add packet to new bucket
+                    tempOut.emplace_back(bucket);
+                    bucket = CompressedBucket();
+                    bucket.add(ipTuple);
+                }
+            }
+            if (bucket.getHasFirst()) { //check if bucket is not empty
+                tempOut.emplace_back(bucket);
+            }
+        }
+        outQueue->enqueue_bulk(tempOut.begin(), tempOut.size());
+
+
+/*        std::vector<IPTuple> sorted;
         if (inQueue->try_dequeue(sorted)) {
             CompressedBucket bucket;
             for (const IPTuple &ipTuple : sorted) {
@@ -182,6 +263,7 @@ void compress(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQue
                 outQueue->enqueue(bucket);
             }
         }
+*/
     }
     {
         std::lock_guard<std::mutex> lock(status_mutex);
@@ -221,7 +303,30 @@ void aggregate(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQu
 
     MetaBucket meta{};
     auto metaLifetime = std::chrono::high_resolution_clock::now();
+    std::vector<CompressedBucket> tempIn{1000};
+
     while (!compressionFinished || inQueue->size_approx() != 0) {
+
+        size_t dequeued = inQueue->try_dequeue_bulk(tempIn.begin(), 1000);
+        for(size_t i = 0; i < dequeued; ++i){
+            if(!meta.add(tempIn.at(i))){ //metabucket is full, enqeue full one and replace with new metabucket,
+                if (outQueue->enqueue(meta)) {
+                    meta = MetaBucket();
+                    metaLifetime = std::chrono::high_resolution_clock::now();
+                    meta.add(tempIn.at(i));
+                }
+            }
+            auto current_time = std::chrono::high_resolution_clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>(current_time - metaLifetime).count() >=
+                10) { //metabucket lives already to long
+                if (outQueue->enqueue(meta)) {
+                    meta = MetaBucket();
+                    metaLifetime = current_time;
+                }
+            }
+        }
+
+/*
         CompressedBucket b;
         if (inQueue->try_dequeue(b)) {
             if (!meta.add(b)) { //metabucket is full
@@ -239,6 +344,7 @@ void aggregate(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQu
                 }
             }
         }
+*/
     }
     if (meta.size() != 0) {
         while (!outQueue->enqueue(meta)); //enqueue last metabucket
