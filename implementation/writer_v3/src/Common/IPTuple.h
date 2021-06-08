@@ -11,6 +11,9 @@
 #include <pcapplusplus/IPv4Layer.h>
 
 namespace common {
+#define TCPn 6
+#define UDPn 17
+#define ICMPn 1
     class IPTuple {
         friend class boost::serialization::access;
 
@@ -91,9 +94,19 @@ namespace common {
         }
 
         std::string toString() const {
-            return pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t" +
-                   pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " " +
-                   std::to_string(protocol) + " " + std::to_string(length) + " " + std::to_string(tv_sec) + " " +
+            return (protocol == TCPn || protocol == UDPn) ?
+                   pcpp::IPv4Address(v4Src).toString() + ":" + std::to_string(portSrc) + " \t\t" +
+                   pcpp::IPv4Address(v4Dst).toString() + ":" + std::to_string(portDst) + " \t\t\t\t" +
+                   std::to_string(protocol) + " \t\t\t" +
+                   std::to_string(length) + " \t" +
+                   std::to_string(tv_sec) + " " +
+                   std::to_string(tv_usec) :
+
+                   pcpp::IPv4Address(v4Src).toString() + " \t\t" +
+                   pcpp::IPv4Address(v4Dst).toString() + " \t\t\t\t" +
+                   std::to_string(protocol) + " \t\t\t" +
+                   std::to_string(length) + " \t" +
+                   std::to_string(tv_sec) + " " +
                    std::to_string(tv_usec);
         }
 

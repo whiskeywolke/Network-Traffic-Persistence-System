@@ -36,7 +36,7 @@ namespace writer {
                                     packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                                     ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
                                     ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst),
-                                    17,
+                                    UDPn,
                                     packet.getRawPacketReadOnly()->getFrameLength(),
                                     ts.tv_sec,
                                     ts.tv_nsec / 1000);  //convert nanoseconds to microseconds
@@ -48,7 +48,7 @@ namespace writer {
                                     packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                                     ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portSrc),
                                     ntohs(packet.getLayerOfType<pcpp::TcpLayer>()->getTcpHeader()->portDst),
-                                    6,
+                                    TCPn,
                                     packet.getRawPacketReadOnly()->getFrameLength(),
                                     ts.tv_sec,
                                     ts.tv_nsec / 1000);  //convert nanoseconds to microseconds
@@ -60,7 +60,7 @@ namespace writer {
                                     packet.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
                                     0,
                                     0,
-                                    1,
+                                    ICMPn,
                                     packet.getRawPacketReadOnly()->getFrameLength(),
                                     ts.tv_sec,
                                     ts.tv_nsec / 1000);  //convert nanoseconds to microseconds

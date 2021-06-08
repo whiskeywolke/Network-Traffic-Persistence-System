@@ -640,17 +640,17 @@ namespace reader {
             if (tempCommand == "udp") {
                 commands.at(i) = "proto";
                 commands.insert(commands.begin() + i + 1, "==");
-                commands.insert(commands.begin() + i + 2, "17");
+                commands.insert(commands.begin() + i + 2, std::to_string(UDPn));
                 i += 2;
             } else if (tempCommand == "tcp") {
                 commands.at(i) = "proto";
                 commands.insert(commands.begin() + i + 1, "==");
-                commands.insert(commands.begin() + i + 2, "6");
+                commands.insert(commands.begin() + i + 2, std::to_string(TCPn));
                 i += 2;
             } else if (tempCommand == "icmp") {
                 commands.at(i) = "proto";
                 commands.insert(commands.begin() + i + 1, "==");
-                commands.insert(commands.begin() + i + 2, "1");
+                commands.insert(commands.begin() + i + 2, std::to_string(ICMPn));
                 i += 2;
             } else if (commands.at(i) == filterType.at(0)) { // frame.time == "Oct 15, 2013 16:00:00"
                 commands.at(i + 2) += " " + commands.at(i + 3) + " " + commands.at(i + 4) + " " + commands.at(i + 5);
@@ -675,7 +675,7 @@ namespace reader {
 
         for (size_t i = 0; i < commands.size(); ++i) {
             //in case a known command that is not frame.time before or after the time is linked with "or"
-            // everything needs to be searched e.g. (udp || time.frame > 5) or e.g. (time.frame > 5 || udp) means that all UDP packets are wanted and all other packets with a timestamp greater than 5
+            // everything needs to be searched e.g. (udp || time.frame > 5) or e.g. (time.frame > 5 || udp) means that all UDPn packets are wanted and all other packets with a timestamp greater than 5
             //in this case all files need to be searched
 
 

@@ -2,8 +2,8 @@
 // Created by ubuntu on 08.06.21.
 //
 
-#ifndef IMPLEMENTATION_WRITERTHREAD_H
-#define IMPLEMENTATION_WRITERTHREAD_H
+#ifndef IMPLEMENTATION_PCAPWRITERTHREAD_H
+#define IMPLEMENTATION_PCAPWRITERTHREAD_H
 
 #include <pcap/pcap.h>
 #include "../Converter.h"
@@ -12,10 +12,12 @@
 namespace reader {
     namespace threadOperations {
         void writeToPcapFile(const std::string filePath, const std::string fileName,
-                             moodycamel::ConcurrentQueue<common::IPTuple> &inQueue, std::atomic<bool> &filterIpTuplesFinished) {
+                             moodycamel::ConcurrentQueue<common::IPTuple> &inQueue,
+                             std::atomic<bool> &filterIpTuplesFinished) {
 
             pcap_t *handle = pcap_open_dead(DLT_RAW,
-                                            1 << 16); //second parameter is snapshot length, not relevant as set by caplen
+                                            1
+                                                    << 16); //second parameter is snapshot length, not relevant as set by caplen
             std::string completeName = (filePath + fileName);
             pcap_dumper_t *dumper = pcap_dump_open(handle, completeName.c_str());
 
@@ -23,7 +25,7 @@ namespace reader {
                 common::IPTuple t;
 
                 if (inQueue.try_dequeue(t)) {
-                    if (t.getProtocol() == 6) {
+                    if (t.getProtocol() == TCPn) {
                         unsigned char tcpPacket[MINTCPHEADERLENGTH] = {0x00};
                         makeTcpPacket(t, tcpPacket);
 
@@ -34,7 +36,7 @@ namespace reader {
                         pcap_hdr.ts.tv_usec = t.getTvUsec();
 
                         pcap_dump((u_char *) dumper, &pcap_hdr, tcpPacket);
-                    } else if (t.getProtocol() == 17) {
+                    } else if (t.getProtocol() == UDPn) {
                         unsigned char udpPacket[MINUDPHEADERLENGTH] = {0x00};
                         makeUdpPacket(t, udpPacket);
 
@@ -45,7 +47,7 @@ namespace reader {
                         pcap_hdr.ts.tv_usec = t.getTvUsec();
 
                         pcap_dump((u_char *) dumper, &pcap_hdr, udpPacket);
-                    } else if (t.getProtocol() == 1) {
+                    } else if (t.getProtocol() == ICMPn) {
                         unsigned char icmpPacket[MINICMPHEADERLENGTH] = {0x00};
                         makeIcmpPacket(t, icmpPacket);
 
@@ -65,4 +67,4 @@ namespace reader {
         }
     }
 }
-#endif //IMPLEMENTATION_WRITERTHREAD_H
+#endif //IMPLEMENTATION_PCAPWRITERTHREAD_H

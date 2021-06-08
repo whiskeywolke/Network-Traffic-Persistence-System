@@ -26,7 +26,7 @@ link_directories(/usr/local/lib/pcappluplus)
 
 #include_directories(${pcapplusplus_INCLUDE_DIRS})
 
-add_executable(pcappp_test src/reader_main.cpp src/writer_main.cpp src/Common/IPTuple.h src/Writer/Converter.h src/Writer/SortST.h src/Common/CompressedBucket.h src/ src/Common/MetaBucket.h src/Reader/Filter.h src/Writer/ThreadOperations/ReaderThread.h src/Writer/ThreadOperations/ConverterThread.h src/Writer/ThreadOperations/SorterThread.h src/Writer/ThreadOperations/CompressorThread.h src/Writer/ThreadOperations/AggregatorThread.h src/Writer/ThreadOperations/WriterThread.h src/Reader/ThreadOperations/ReaderThread.h src/Reader/ThreadOperations/WriterThread.h src/Reader/Converter.h src/Reader/ThreadOperations/FilterThread.h src/Common/Directory.h)
+add_executable(pcappp_test src/reader_main.cpp src/writer_main.cpp src/Common/IPTuple.h src/Writer/Converter.h src/Writer/SortST.h src/Common/CompressedBucket.h src/ src/Common/MetaBucket.h src/Reader/Filter.h src/Writer/ThreadOperations/ReaderThread.h src/Writer/ThreadOperations/ConverterThread.h src/Writer/ThreadOperations/SorterThread.h src/Writer/ThreadOperations/CompressorThread.h src/Writer/ThreadOperations/AggregatorThread.h src/Writer/ThreadOperations/WriterThread.h src/Reader/ThreadOperations/ReaderThread.h src/Reader/ThreadOperations/PcapWriterThread.h src/Reader/Converter.h src/Reader/ThreadOperations/FilterThread.h src/Common/Directory.h src/Reader/ThreadOperations/OutThread.h)
 
 #target_link_libraries(BoostTest ${pcapplusplus_LIBRARIES})
 

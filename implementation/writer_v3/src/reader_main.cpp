@@ -6,12 +6,16 @@
 
 #include "Reader/ThreadOperations/ReaderThread.h"
 #include "Reader/ThreadOperations/FilterThread.h"
-#include "Reader/ThreadOperations/WriterThread.h"
+#include "Reader/ThreadOperations/PcapWriterThread.h"
+#include "Reader/ThreadOperations/OutThread.h"
 #include "Reader/Filter.h"
 
 #include "Common/ConcurrentQueue/concurrentqueue.h"
 #include "Common/CompressedBucket.h"
 #include "Common/Directory.h"
+
+#define READER_THREADS 4
+#define FILTER_THREADS 4
 
 inline void join(std::vector<std::thread> &threads) {
     if (!threads.empty()) {
@@ -21,15 +25,13 @@ inline void join(std::vector<std::thread> &threads) {
     }
 }
 
-#define READER_THREADS 4
-#define FILTER_THREADS 4
-
 int main(int argc, char *argv[]) {
     ///flags set by arguments
     std::string inFilePath = "./";//default directory
     std::string outFilePath = "./";//default directory
     std::string filterString{};
     bool writePcap = false;
+    bool verbose = false;
 
     /// parsing arguments
     for (int i = 1; i < argc; ++i) {
@@ -55,6 +57,8 @@ int main(int argc, char *argv[]) {
             --i;
         } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "-pcap") == 0) { // filterString specified
             writePcap = true;
+        }else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "-verbose") == 0) { // filterString specified
+            verbose = true;
         }
     }
 
@@ -63,12 +67,13 @@ int main(int argc, char *argv[]) {
     reader::parseFilter(filterString, query);
 
     ///printing configuration
-    std::cout << "Reading from directory: " + inFilePath << std::endl;
-    if (writePcap) {
-        std::cout << "Writing to Pcap file at: " << outFilePath << std::endl;
+    if(verbose) {
+        std::cout << "Reading from directory: " + inFilePath << std::endl;
+        if (writePcap) {
+            std::cout << "Writing to Pcap file at: " << outFilePath << std::endl;
+        }
+        std::cout << "Applying Filter: " << query.toString() << std::endl;
     }
-    std::cout << "Applying Filter: " << query.toString() << std::endl;
-
     ///reading files form directory
     auto files = common::getFilesFromDir(inFilePath.c_str());
     if (files.empty()) {
@@ -154,6 +159,8 @@ int main(int argc, char *argv[]) {
         writers.reserve(1);
         std::string fileName = query.toString() + ".pcap";
         writers.emplace_back(reader::threadOperations::writeToPcapFile, outFilePath, fileName, std::ref(ipTuples), std::ref(filterIpTuplesFinished));
+    }else{
+        writers.emplace_back(reader::threadOperations::writeOut, std::ref(std::cout), std::ref(ipTuples), std::ref(filterIpTuplesFinished));
     }
 
     join(readers);
@@ -170,13 +177,14 @@ int main(int argc, char *argv[]) {
 
 
     ///printing statistics
-    std::cout << "Read from Files: " << "\n";
-    for (const auto &x : files) {
-        std::cout << "  " << x << "\n";
+    if(verbose) {
+        std::cout << "Read from Files: " << "\n";
+        for (const auto &x : files) {
+            std::cout << "  " << x << "\n";
+        }
+
+        std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
+        std::cout << "\nduration w/ write: \t\t" << durationWrite << " nanoseconds\n";
     }
-
-    std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
-    std::cout << "\nduration w/ write: \t\t" << durationWrite << " nanoseconds\n";
-
     return 0;
 }

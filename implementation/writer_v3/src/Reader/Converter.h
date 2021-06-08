@@ -79,7 +79,7 @@ namespace reader{
 
     inline void makeTcpPacket(const common::IPTuple &t, unsigned char *tcp) {
         tcp[0] = 0x45; //declare as IPv4 Packet
-        tcp[9] = 0x06; //declare next layer as TCP
+        tcp[9] = 0x06; //declare next layer as TCPn
 
         uint32_t srcAddrInt = t.getV4Src();
         unsigned char srcAddrBytes[4];

@@ -2,8 +2,8 @@
 // Created by ubuntu on 08.06.21.
 //
 
-#ifndef IMPLEMENTATION_WRITERTHREAD_H
-#define IMPLEMENTATION_WRITERTHREAD_H
+#ifndef IMPLEMENTATION_PCAPWRITERTHREAD_H
+#define IMPLEMENTATION_PCAPWRITERTHREAD_H
 
 #include "../../Common/ConcurrentQueue/concurrentqueue.h"
 #include "../../Common/MetaBucket.h"
@@ -33,4 +33,4 @@ namespace writer {
     }
 }
 
-#endif //IMPLEMENTATION_WRITERTHREAD_H
+#endif //IMPLEMENTATION_PCAPWRITERTHREAD_H
