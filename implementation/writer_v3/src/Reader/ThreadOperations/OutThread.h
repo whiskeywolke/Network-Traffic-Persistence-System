@@ -40,14 +40,14 @@ namespace reader {
                         os << std::setw(ipWidth) << pcpp::IPv4Address(t.getV4Src()).toString() + ":" + std::to_string(t.getPortSrc())
                            << std::setw(ipWidth) << pcpp::IPv4Address(t.getV4Dst()).toString() + ":" + std::to_string(t.getPortDst())
                            << std::setw(10) << std::to_string(t.getProtocol())
-                           << std::setw(8) << std::to_string(t.getProtocol())
+                           << std::setw(8) << std::to_string(t.getLength())
                            << std::setw(15) << t.getTvSec()
                            << std::setw(15) << t.getTvUsec() << '\n';
                     } else {
                         os << std::setw(ipWidth) << pcpp::IPv4Address(t.getV4Src()).toString()
                            << std::setw(ipWidth) << pcpp::IPv4Address(t.getV4Dst()).toString()
                            << std::setw(10) << std::to_string(t.getProtocol())
-                           << std::setw(8) << std::to_string(t.getProtocol())
+                           << std::setw(8) << std::to_string(t.getLength())
                            << std::setw(15) << t.getTvSec()
                            << std::setw(15) << t.getTvUsec() << '\n';
                     }
