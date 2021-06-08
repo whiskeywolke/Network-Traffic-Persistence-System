@@ -21,23 +21,6 @@
 #include "Common/ConcurrentQueue/concurrentqueue.h"
 
 
-std::atomic<unsigned int> readPackets{0};
-
-std::atomic<bool> readingFinished{false};
-std::atomic<bool> conversionFinished{false};
-std::atomic<bool> sortingFinished{false};
-std::atomic<bool> compressionFinished{false};
-std::atomic<bool> aggregationFinished{false};
-
-std::atomic<long> readingDuration{0};
-std::atomic<long> conversionDuration{0};
-std::atomic<long> sortingDuration{0};
-std::atomic<long> compressionDuration{0};
-std::atomic<long> aggregationDuration{0};
-std::atomic<long> writingDuration{0};
-
-std::mutex status_mutex;
-
 std::string getPredefinedFilterAsString() {
     pcpp::ProtoFilter tcpProtocolFilter(pcpp::TCP);
     pcpp::ProtoFilter udpProtocolFilter(pcpp::UDP);
@@ -84,7 +67,9 @@ uint64_t getTotalFilesSize(const char *path) { //works only in linux
 }
 
 void readPcapFile(const std::string &fileName, std::vector<bool> *status, int threadID,
-                  moodycamel::ConcurrentQueue<pcpp::RawPacket> *outQueue) {
+                  moodycamel::ConcurrentQueue<pcpp::RawPacket> *outQueue, std::mutex &status_mutex,
+                  std::atomic<bool> &readingFinished, std::atomic<long> &readingDuration,
+                  std::atomic<long> &readPackets) {
     pcpp::IFileReaderDevice *reader = pcpp::IFileReaderDevice::getReader(fileName.c_str());
 
     if (reader == nullptr || !reader->open()) {
@@ -152,7 +137,9 @@ void readPcapFile(const std::string &fileName, std::vector<bool> *status, int th
 }
 
 void convert(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<pcpp::RawPacket> *inQueue,
-             moodycamel::ConcurrentQueue<common::IPTuple> *outQueue) {
+             moodycamel::ConcurrentQueue<common::IPTuple> *outQueue, std::mutex &status_mutex,
+             std::atomic<bool> &readingFinished, std::atomic<bool> &conversionFinished,
+             std::atomic<long> &conversionDuration) {
     pcpp::RawPacket input;
     common::IPTuple ipTuple;
 
@@ -188,7 +175,9 @@ void convert(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueu
 }
 
 void sortSingleThread(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<common::IPTuple> *inQueue,
-                      moodycamel::ConcurrentQueue<std::vector<common::IPTuple>> *outQueue) {
+                      moodycamel::ConcurrentQueue<std::vector<common::IPTuple>> *outQueue, std::mutex &status_mutex,
+                      std::atomic<bool> &conversionFinished, std::atomic<bool> &sortingFinished,
+                      std::atomic<long> &sortingDuration) {
     writer::SortST b{};
     auto start = std::chrono::high_resolution_clock::now();
     auto time_since_flush = std::chrono::high_resolution_clock::now();
@@ -226,7 +215,9 @@ void sortSingleThread(std::vector<bool> *status, int threadID, moodycamel::Concu
 
 void
 compress(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<std::vector<common::IPTuple>> *inQueue,
-         moodycamel::ConcurrentQueue<common::CompressedBucket> *outQueue) {
+         moodycamel::ConcurrentQueue<common::CompressedBucket> *outQueue, std::mutex &status_mutex,
+         std::atomic<bool> &sortingFinished, std::atomic<bool> &compressionFinished,
+         std::atomic<long> &compressionDuration) {
     auto start = std::chrono::high_resolution_clock::now();
 
     while (!sortingFinished || inQueue->size_approx() != 0) {
@@ -300,7 +291,9 @@ compress(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<st
 }
 
 void aggregate(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<common::CompressedBucket> *inQueue,
-               moodycamel::ConcurrentQueue<common::MetaBucket> *outQueue) {
+               moodycamel::ConcurrentQueue<common::MetaBucket> *outQueue, std::mutex &status_mutex,
+               std::atomic<bool> &compressionFinished, std::atomic<bool> &aggregationFinished,
+               std::atomic<long> &aggregationDuration) {
     auto start = std::chrono::high_resolution_clock::now();
 
     common::MetaBucket meta{};
@@ -364,7 +357,8 @@ void aggregate(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQu
 }
 
 void writeToFile(std::vector<bool> *status, int threadID, moodycamel::ConcurrentQueue<common::MetaBucket> *inQueue,
-                 const std::string &outFilePath) {
+                 const std::string &outFilePath, std::atomic<bool> &aggregationFinished,
+                 std::atomic<long> &writingDuration) {
     auto start = std::chrono::high_resolution_clock::now();
     {
         common::MetaBucket b;
@@ -477,6 +471,23 @@ int main(int argc, char *argv[]) {
     moodycamel::ConcurrentQueue<common::CompressedBucket> queueCompressed(50000);
     moodycamel::ConcurrentQueue<common::MetaBucket> queueFiles(50000);
 
+    std::atomic<long> readPackets{0};
+
+    std::atomic<bool> readingFinished{false};
+    std::atomic<bool> conversionFinished{false};
+    std::atomic<bool> sortingFinished{false};
+    std::atomic<bool> compressionFinished{false};
+    std::atomic<bool> aggregationFinished{false};
+
+    std::atomic<long> readingDuration{0};
+    std::atomic<long> conversionDuration{0};
+    std::atomic<long> sortingDuration{0};
+    std::atomic<long> compressionDuration{0};
+    std::atomic<long> aggregationDuration{0};
+    std::atomic<long> writingDuration{0};
+
+    std::mutex status_mutex;
+
     auto start = std::chrono::high_resolution_clock::now();
 
 //for profiling call all functions sequential in main thread
@@ -488,32 +499,40 @@ int main(int argc, char *argv[]) {
 */
 
     for (int i = 0; i < READER_THREADS; ++i) {
-        readers.emplace_back(readPcapFile, std::ref(inFilename), &readerStatus, i, &queueRaw);
+        readers.emplace_back(readPcapFile, std::ref(inFilename), &readerStatus, i, &queueRaw, std::ref(status_mutex),
+                             std::ref(readingFinished), std::ref(readingDuration), std::ref(readPackets));
     }
     if (sequentialExecution) { join(readers); }
-
+/*std::mutex& status_mutex, std::atomic<bool>& readingFinished, std::atomic<bool>& conversionFinished, std::atomic<long>& conversionDuration*/
     for (int i = 0; i < CONVERTER_THREADS; ++i) {
-        converters.emplace_back(convert, &converterStatus, i, &queueRaw, &queueParsed);
+        converters.emplace_back(convert, &converterStatus, i, &queueRaw, &queueParsed, std::ref(status_mutex),
+                                std::ref(readingFinished), std::ref(conversionFinished), std::ref(conversionDuration));
     }
     if (sequentialExecution) { join(converters); }
 
     for (int i = 0; i < SORTER_THREADS; ++i) {
-        sorters.emplace_back(sortSingleThread, &sorterStatus, i, &queueParsed, &queueSorted);
+        sorters.emplace_back(sortSingleThread, &sorterStatus, i, &queueParsed, &queueSorted, std::ref(status_mutex),
+                             std::ref(conversionFinished), std::ref(sortingFinished), std::ref(sortingDuration));
     }
     if (sequentialExecution) { join(sorters); }
 
     for (int i = 0; i < COMPRESSOR_THREADS; ++i) {
-        compressors.emplace_back(compress, &compressorStatus, i, &queueSorted, &queueCompressed);
+        compressors.emplace_back(compress, &compressorStatus, i, &queueSorted, &queueCompressed, std::ref(status_mutex),
+                                 std::ref(sortingFinished), std::ref(compressionFinished),
+                                 std::ref(compressionDuration));
     }
     if (sequentialExecution) { join(compressors); }
 
     for (int i = 0; i < AGGREGATOR_THREADS; ++i) {
-        aggregators.emplace_back(aggregate, &aggregatorStatus, i, &queueCompressed, &queueFiles);
+        aggregators.emplace_back(aggregate, &aggregatorStatus, i, &queueCompressed, &queueFiles, std::ref(status_mutex),
+                                 std::ref(compressionFinished), std::ref(aggregationFinished),
+                                 std::ref(aggregationDuration));
     }
     if (sequentialExecution) { join(aggregators); }
 
     for (int i = 0; i < WRITER_THREADS; ++i) {
-        writers.emplace_back(writeToFile, &writerStatus, i, &queueFiles, outFilePath);
+        writers.emplace_back(writeToFile, &writerStatus, i, &queueFiles, outFilePath, std::ref(aggregationFinished),
+                             std::ref(writingDuration));
     }
     if (sequentialExecution) { join(writers); }
 
