@@ -20,7 +20,7 @@
     uint64_t tv_usec; //microseconds since last second
 */
 namespace reader {
-    enum Operator {
+    enum ComparisonOperator {
         equal,
         notEqual,
         lessThan,
@@ -119,9 +119,9 @@ namespace reader {
     class SrcIPFilter : public Filter { //filters for src OR dst ip address
     private:
         uint32_t addr;
-        Operator op;
+        ComparisonOperator op;
     public:
-        SrcIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
+        SrcIPFilter(uint32_t addr, ComparisonOperator op) : addr(addr), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -150,9 +150,9 @@ namespace reader {
     class DstIPFilter : public Filter { //filters for src OR dst ip address
     private:
         uint32_t addr;
-        Operator op;
+        ComparisonOperator op;
     public:
-        DstIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
+        DstIPFilter(uint32_t addr, ComparisonOperator op) : addr(addr), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -180,9 +180,9 @@ namespace reader {
 
     class IPFilter : public Filter { //filters for src OR dst ip address
         uint32_t addr;
-        Operator op;
+        ComparisonOperator op;
     public:
-        IPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
+        IPFilter(uint32_t addr, ComparisonOperator op) : addr(addr), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             return SrcIPFilter{addr, op}.apply(t) || DstIPFilter{addr, op}.apply(t);
@@ -196,9 +196,9 @@ namespace reader {
     class SrcPortFilter : public Filter {
     private:
         uint16_t port;
-        Operator op;
+        ComparisonOperator op;
     public:
-        SrcPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
+        SrcPortFilter(uint16_t port, ComparisonOperator op) : port(port), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -227,9 +227,9 @@ namespace reader {
     class DstPortFilter : public Filter {
     private:
         uint16_t port;
-        Operator op;
+        ComparisonOperator op;
     public:
-        DstPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
+        DstPortFilter(uint16_t port, ComparisonOperator op) : port(port), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -257,9 +257,9 @@ namespace reader {
 
     class PortFilter : public Filter { //filters for src OR dst ip address
         uint16_t port;
-        Operator op;
+        ComparisonOperator op;
     public:
-        PortFilter(uint16_t port, Operator op) : port(port), op(op) {}
+        PortFilter(uint16_t port, ComparisonOperator op) : port(port), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             return SrcPortFilter{port, op}.apply(t) || DstPortFilter{port, op}.apply(t);
@@ -273,9 +273,9 @@ namespace reader {
     class ProtocolFilter : public Filter {
     private:
         uint8_t protocolId;
-        Operator op;
+        ComparisonOperator op;
     public:
-        ProtocolFilter(uint8_t protocolId, Operator op) : protocolId(protocolId), op(op) {}
+        ProtocolFilter(uint8_t protocolId, ComparisonOperator op) : protocolId(protocolId), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -304,9 +304,9 @@ namespace reader {
     class LengthFilter : public Filter {
     private:
         uint16_t length;
-        Operator op;
+        ComparisonOperator op;
     public:
-        LengthFilter(uint16_t length, Operator op) : length(length), op(op) {}
+        LengthFilter(uint16_t length, ComparisonOperator op) : length(length), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (op) {
@@ -335,9 +335,9 @@ namespace reader {
     class TimeFilter : public Filter {
     private:
         timeval time;
-        Operator op;
+        ComparisonOperator op;
     public:
-        TimeFilter(timeval time, Operator op) : time(time), op(op) {}
+        TimeFilter(timeval time, ComparisonOperator op) : time(time), op(op) {}
 
         bool apply(const common::IPTuple &t) const override {
             switch (this->op) {
@@ -665,10 +665,10 @@ namespace reader {
 
         std::vector<std::string> commands = prepareCommands(filterString);
         uint64_t maxTime = 0;
-        Operator maxOperator = Operator::lessThanEqual;
+        ComparisonOperator maxOperator = ComparisonOperator::lessThanEqual;
         bool maxFound = false;
         uint64_t minTime = std::numeric_limits<uint64_t>::max();
-        Operator minOperator = Operator::greaterThanEqual;
+        ComparisonOperator minOperator = ComparisonOperator::greaterThanEqual;
         bool minFound = false;
 
         bool timeIsIrrelevant = false;
@@ -692,18 +692,18 @@ namespace reader {
 
                 struct timeval t = stringToTimeval(commands.at(i + 2));
                 uint64_t temp = t.tv_sec * 1000000 + t.tv_usec;
-                Operator op = static_cast<Operator>(std::distance(operatorType.begin(),
-                                                                  std::find(operatorType.begin(),
+                ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(operatorType.begin(),
+                                                                                      std::find(operatorType.begin(),
                                                                             operatorType.end(),
                                                                             commands.at(i + 1))));
-                if (temp > maxTime && (op == Operator::lessThanEqual || op == Operator::lessThan ||
-                                       op == Operator::equal)) { //can only be a max value if operator is < or <= or ==
+                if (temp > maxTime && (op == ComparisonOperator::lessThanEqual || op == ComparisonOperator::lessThan ||
+                                       op == ComparisonOperator::equal)) { //can only be a max value if operator is < or <= or ==
                     maxTime = temp;
                     maxOperator = op;
                     maxFound = true;
                 }
-                if (temp < minTime && (op == Operator::greaterThanEqual || op == Operator::greaterThan || op ==
-                                                                                                          Operator::equal)) { //can only be a min value if operator is > or >= or ==) {
+                if (temp < minTime && (op == ComparisonOperator::greaterThanEqual || op == ComparisonOperator::greaterThan || op ==
+                                                                                                                              ComparisonOperator::equal)) { //can only be a min value if operator is > or >= or ==) {
                     minTime = temp;
                     minOperator = op;
                     minFound = true;
@@ -740,7 +740,7 @@ namespace reader {
                 std::cout << "min: " << minTime << std::endl;
                 std::cout << "maxop: " << maxOperator << std::endl;
                 std::cout << "minop: " << minOperator << std::endl;
-                std::cout << ">=: " << Operator::greaterThanEqual << std::endl;
+                std::cout << ">=: " << ComparisonOperator::greaterThanEqual << std::endl;
                 std::cout << "this time search is not implemented!" << std::endl;
                 assert(false);
             }
@@ -787,8 +787,8 @@ namespace reader {
                 nextBoolFilter = commands.at(++i);
             }
 
-            Operator op = static_cast<Operator>(std::distance(operatorType.begin(),
-                                                              std::find(operatorType.begin(), operatorType.end(),
+            ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(operatorType.begin(),
+                                                                                  std::find(operatorType.begin(), operatorType.end(),
                                                                         comparison)));
 
             Filter *typeFilter;

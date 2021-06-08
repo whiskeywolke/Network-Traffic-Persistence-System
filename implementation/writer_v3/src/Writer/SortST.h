@@ -9,8 +9,8 @@
 #include <map>
 #include <mutex>
 #include <unordered_map>
-#include "HashMap/robin_map.h"
 #include "../Common/ConcurrentQueue/concurrentqueue.h"
+#include "../Common/HashMap/robin_map.h"
 
 #define BOOST_RESULT_OF_USE_DECLTYPE
 
@@ -23,7 +23,7 @@ namespace writer {
 
     public:
 
-        SortST() = default;;
+        SortST() = default;
 
         SortST(const SortST &) = delete;
 

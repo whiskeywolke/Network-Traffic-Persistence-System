@@ -9,6 +9,7 @@
 #include "Reader/ThreadOperations/PcapWriterThread.h"
 #include "Reader/ThreadOperations/OutThread.h"
 #include "Reader/Filter.h"
+#include "Reader/Aggregator.h"
 
 #include "Common/ConcurrentQueue/concurrentqueue.h"
 #include "Common/CompressedBucket.h"
@@ -16,6 +17,34 @@
 
 #define READER_THREADS 4
 #define FILTER_THREADS 4
+
+void aggregates(std::string config,  moodycamel::ConcurrentQueue <common::IPTuple> &inQueue, std::atomic<bool> &filterIpTuplesFinished){
+    //parse config to
+    //interval
+    //operation
+    //field (of IPtuple)
+
+    //map<timeslot, vector<uint32>>  holds all vectors mapped by timeslots
+    std::cout<<"hier\n";
+  //  std::vector<uint32_t> temp{}; //holds one field of all IPTuples on which the operation is performed
+    reader::Aggregator agg(reader::AggregationOperator::sum, reader::IpTupleField::length, 1000000);
+    while (!filterIpTuplesFinished || inQueue.size_approx() != 0) {
+        std::vector<common::IPTuple> temp{1000};
+
+        size_t dequeued = inQueue.try_dequeue_bulk(temp.begin(), 1000);
+
+        for(size_t i = 0; i < dequeued; ++i){
+            agg.add(temp.at(i));
+        }
+    }
+    auto x = agg.calculate();
+
+    std::cout<<"size: "<<x.size()<<std::endl;
+    for(const uint32_t& temp : x){
+        std::cout<<temp<<std::endl;
+    }
+
+}
 
 inline void join(std::vector<std::thread> &threads) {
     if (!threads.empty()) {
@@ -32,6 +61,7 @@ int main(int argc, char *argv[]) {
     std::string filterString{};
     bool writePcap = false;
     bool verbose = false;
+    bool aggregate = false;
 
     /// parsing arguments
     for (int i = 1; i < argc; ++i) {
@@ -59,10 +89,12 @@ int main(int argc, char *argv[]) {
             writePcap = true;
         }else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "-verbose") == 0) { // filterString specified
             verbose = true;
+        }else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "-aggregate") == 0) { // filterString specified
+            aggregate = true;
         }
     }
 
-    ///parsing filters
+    ///parsing filterThreads
     reader::AndFilter query{};
     reader::parseFilter(filterString, query);
 
@@ -101,21 +133,21 @@ int main(int argc, char *argv[]) {
     }
 
     /// queues for data synchronization
-    moodycamel::ConcurrentQueue<common::CompressedBucket> compressedBuckets2(2000000);
+    moodycamel::ConcurrentQueue<common::CompressedBucket> compressedBuckets(2000000);
     moodycamel::ConcurrentQueue<common::IPTuple> ipTuples(1000000);
 
     ///creating vectors holding threads
-    std::vector<std::thread> filters{};
-    std::vector<std::thread> readers{};
-    std::vector<std::thread> writers{};
+    std::vector<std::thread> readerThreads{};
+    std::vector<std::thread> filterThreads{};
+    std::vector<std::thread> outThreads{};
 
     size_t readingThreadCount = READER_THREADS;
     if (files.size() < readingThreadCount) {
         ///prevents that more threads than files exist, in which case the threadcount is reduced
         readingThreadCount = files.size();
     }
-    readers.reserve(readingThreadCount);
-    filters.reserve(FILTER_THREADS);
+    readerThreads.reserve(readingThreadCount);
+    filterThreads.reserve(FILTER_THREADS);
 
     ///boolean vectors for synchronization of threads
     std::vector<bool> readerStatus(readingThreadCount, false);
@@ -137,38 +169,45 @@ int main(int argc, char *argv[]) {
             std::vector<std::string>::const_iterator startIt = files.begin();
             std::vector<std::string>::const_iterator endIt =
                     files.begin() + files.size() % readingThreadCount + (files.size() / readingThreadCount);
-            readers.emplace_back(reader::threadOperations::readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
-                                 std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets2), std::ref(readerStatusMutex), std::ref(filterCompressedBucketsFinished));
+            readerThreads.emplace_back(reader::threadOperations::readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
+                                       std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets), std::ref(readerStatusMutex), std::ref(filterCompressedBucketsFinished));
         } else {
             auto startIt =
                     files.begin() + files.size() % readingThreadCount + (i * (files.size() / readingThreadCount));
             auto endIt =
                     files.begin() + files.size() % readingThreadCount + ((i + 1) * (files.size() / readingThreadCount));
-            readers.emplace_back(reader::threadOperations::readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
-                                 std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets2), std::ref(readerStatusMutex), std::ref(filterCompressedBucketsFinished));
+            readerThreads.emplace_back(reader::threadOperations::readAndFilter, std::ref(readerStatus), i, std::ref(inFilePath), startIt, endIt,
+                                       std::ref(timeRangePreFilter), std::ref(ipPreFilter), std::ref(compressedBuckets), std::ref(readerStatusMutex), std::ref(filterCompressedBucketsFinished));
         }
     }
 
     for (int i = 0; i < FILTER_THREADS; ++i) {
-        filters.emplace_back(
-                std::thread{reader::threadOperations::filterIpTuples, std::ref(filterStatus), i, std::ref(query), std::ref(compressedBuckets2),
+        filterThreads.emplace_back(
+                std::thread{reader::threadOperations::filterIpTuples, std::ref(filterStatus), i, std::ref(query), std::ref(compressedBuckets),
                             std::ref(ipTuples), std::ref(filterStatusMutex), std::ref(filterCompressedBucketsFinished), std::ref( filterIpTuplesFinished)});
     }
 
-    if (writePcap) {
-        writers.reserve(1);
-        std::string fileName = query.toString() + ".pcap";
-        writers.emplace_back(reader::threadOperations::writeToPcapFile, outFilePath, fileName, std::ref(ipTuples), std::ref(filterIpTuplesFinished));
+    if(!aggregate) {
+        if (writePcap) {
+            outThreads.reserve(1);
+            std::string fileName = query.toString() + ".pcap";
+            outThreads.emplace_back(reader::threadOperations::writeToPcapFile, outFilePath, fileName,
+                                    std::ref(ipTuples), std::ref(filterIpTuplesFinished));
+        } else {
+            outThreads.emplace_back(reader::threadOperations::writeOut, std::ref(std::cout), std::ref(ipTuples),
+                                    std::ref(filterIpTuplesFinished));
+        }
     }else{
-        writers.emplace_back(reader::threadOperations::writeOut, std::ref(std::cout), std::ref(ipTuples), std::ref(filterIpTuplesFinished));
+        //todo aggregate
+        aggregates("asd",std::ref(ipTuples), std::ref(filterIpTuplesFinished));
     }
 
-    join(readers);
-    join(filters);
+    join(readerThreads);
+    join(filterThreads);
 
     auto end1 = std::chrono::high_resolution_clock::now();
 
-    join(writers);
+    join(outThreads);
 
     auto end2 = std::chrono::high_resolution_clock::now();
 
