@@ -5,6 +5,8 @@
 #ifndef IMPLEMENTATION_AGGREGATORTHREAD_H
 #define IMPLEMENTATION_AGGREGATORTHREAD_H
 
+#include <mutex>
+
 #include "../../Common/ConcurrentQueue/concurrentqueue.h"
 #include "../../Common/CompressedBucket.h"
 #include "../../Common/MetaBucket.h"
