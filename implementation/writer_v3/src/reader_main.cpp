@@ -8,11 +8,10 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 
-#include "Model/CompressedBucket.h"
-#include "Model/MetaBucket.h"
-#include "Model/Filter.h"
-#include "Converter/Converter.h"
-#include "ConcurrentQueue/concurrentqueue.h"
+#include "Common/CompressedBucket.h"
+#include "Common/MetaBucket.h"
+#include "Reader/Filter.h"
+#include "Common/ConcurrentQueue/concurrentqueue.h"
 
 #define MINICMPHEADERLENGTH 20
 #define MINICMPPKTLENGTH 21
@@ -43,7 +42,7 @@ std::vector<std::string> getFiles(const char *path) {
     return files;
 }
 
-inline void makeIcmpPacket(const IPTuple &t, unsigned char *icmp) {
+inline void makeIcmpPacket(const common::IPTuple &t, unsigned char *icmp) {
     icmp[0] = 0x45; //declare as IPv4 Packet
     icmp[9] = 0x01; //declare next layer as icmp
 
@@ -66,7 +65,7 @@ inline void makeIcmpPacket(const IPTuple &t, unsigned char *icmp) {
     icmp[19] = dstAddrBytes[3];
 }
 
-inline void makeUdpPacket(const IPTuple &t, unsigned char *udp) {
+inline void makeUdpPacket(const common::IPTuple &t, unsigned char *udp) {
     udp[0] = 0x45; //declare as IPv4 Packet
     udp[9] = 0x11; //declare next layer as udp
 
@@ -105,7 +104,7 @@ inline void makeUdpPacket(const IPTuple &t, unsigned char *udp) {
     udp[23] = dstPortBytes[1];
 }
 
-inline void makeTcpPacket(const IPTuple &t, unsigned char *tcp) {
+inline void makeTcpPacket(const common::IPTuple &t, unsigned char *tcp) {
     tcp[0] = 0x45; //declare as IPv4 Packet
     tcp[9] = 0x06; //declare next layer as TCP
 
@@ -154,18 +153,18 @@ std::atomic<bool> filterIpTuplesFinished{false};
 void readAndFilter(std::vector<bool> &status, const int &threadID, const std::string &filePath,
                    std::vector<std::string>::const_iterator startIt,
                    const std::vector<std::string>::const_iterator &endIt,
-                   const filter::TimeRangePreFilter &timeRangePreFilter, const filter::IpPreFilter &ipPreFilter,
-                   moodycamel::ConcurrentQueue<CompressedBucket> &outQueue) {
+                   const reader::TimeRangePreFilter &timeRangePreFilter, const reader::IpPreFilter &ipPreFilter,
+                   moodycamel::ConcurrentQueue<common::CompressedBucket> &outQueue) {
 
     for (; startIt < endIt; ++startIt) {
-        MetaBucket m;
+        common::MetaBucket m;
         std::string fileName = filePath + *startIt;
         std::ifstream ifs(fileName);
         boost::archive::binary_iarchive ia(ifs);
         ia >> m;
-        std::vector<CompressedBucket> temp{};
+        std::vector<common::CompressedBucket> temp{};
         temp.reserve(1000000);
-        for (const CompressedBucket &c : m.getStorage()) {
+        for (const common::CompressedBucket &c : m.getStorage()) {
             if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
                 ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
                 temp.emplace_back(c);
@@ -184,19 +183,19 @@ void readAndFilter(std::vector<bool> &status, const int &threadID, const std::st
 
 }
 
-void filterIpTuples(std::vector<bool> &status, const int &threadID, const filter::AndFilter &filter,
-                    moodycamel::ConcurrentQueue<CompressedBucket> &inQueue,
-                    moodycamel::ConcurrentQueue<IPTuple> &outQueue) {
+void filterIpTuples(std::vector<bool> &status, const int &threadID, const reader::AndFilter &filter,
+                    moodycamel::ConcurrentQueue<common::CompressedBucket> &inQueue,
+                    moodycamel::ConcurrentQueue<common::IPTuple> &outQueue) {
 
     while (!filterCompressedBucketsFinished || inQueue.size_approx() != 0) {
-        CompressedBucket c;
-        std::vector<IPTuple> temp{};
+        common::CompressedBucket c;
+        std::vector<common::IPTuple> temp{};
 
         if (inQueue.try_dequeue(c)) {
-            std::vector<IPTuple> decompressed{};
+            std::vector<common::IPTuple> decompressed{};
             c.getData(decompressed);
             temp.reserve(decompressed.size());
-            for (const IPTuple &t : decompressed) {
+            for (const common::IPTuple &t : decompressed) {
                 if (filter.apply(t)) {
                     temp.emplace_back(t);
                 }
@@ -216,7 +215,7 @@ void filterIpTuples(std::vector<bool> &status, const int &threadID, const filter
 }
 
 void writeToPcapFile(const std::string filePath, const std::string fileName,
-                     moodycamel::ConcurrentQueue<IPTuple> &inQueue) {
+                     moodycamel::ConcurrentQueue<common::IPTuple> &inQueue) {
 
     pcap_t *handle = pcap_open_dead(DLT_RAW,
                                     1 << 16); //second parameter is snapshot length, not relevant as set by caplen
@@ -224,7 +223,7 @@ void writeToPcapFile(const std::string filePath, const std::string fileName,
     pcap_dumper_t *dumper = pcap_dump_open(handle, completeName.c_str());
 
     while (!filterIpTuplesFinished || inQueue.size_approx() != 0) {
-        IPTuple t;
+        common::IPTuple t;
 
         if (inQueue.try_dequeue(t)) {
             if (t.getProtocol() == 6) {
@@ -299,7 +298,7 @@ int main(int argc, char *argv[]) {
             if (outFilePath.at(outFilePath.size() - 1) != '/') {
                 outFilePath.append("/");
             }
-        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0) { // filterString specified
+        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-reader") == 0) { // filterString specified
             ++i;
             while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
                 filterString.append(argv[i]).append(" ");
@@ -323,14 +322,14 @@ int main(int argc, char *argv[]) {
     }
 
     ///parsing filters
-    filter::AndFilter query{};
-    filter::parseFilter(filterString, query);
+    reader::AndFilter query{};
+    reader::parseFilter(filterString, query);
     std::cout << "Applying Filter: " << query.toString() << std::endl;
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    filter::TimeRangePreFilter timeRangePreFilter = filter::makeTimeRangePreFilter(filterString);
-    filter::IpPreFilter ipPreFilter = filter::makeIpPreFilter(filterString);
+    reader::TimeRangePreFilter timeRangePreFilter = reader::makeTimeRangePreFilter(filterString);
+    reader::IpPreFilter ipPreFilter = reader::makeIpPreFilter(filterString);
 
     ///applying prefilter to only read neccessary files
     for (size_t i = 0; i < files.size();) {
@@ -346,8 +345,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    moodycamel::ConcurrentQueue<CompressedBucket> compressedBuckets2(2000000);
-    moodycamel::ConcurrentQueue<IPTuple> ipTuples(1000000);
+    moodycamel::ConcurrentQueue<common::CompressedBucket> compressedBuckets2(2000000);
+    moodycamel::ConcurrentQueue<common::IPTuple> ipTuples(1000000);
 
     std::vector<std::thread> readers{};
     readers.reserve(files.size());

@@ -8,7 +8,7 @@
 
 #include <string>
 #include <regex>
-#include "IPTuple.h"
+#include "../Common/IPTuple.h"
 
 /*    uint32_t v4Src;
     uint32_t v4Dst;
@@ -19,7 +19,7 @@
     uint64_t tv_sec; //seconds since 1.1.1970 00:00
     uint64_t tv_usec; //microseconds since last second
 */
-namespace filter {
+namespace reader {
     enum Operator {
         equal,
         notEqual,
@@ -38,7 +38,7 @@ namespace filter {
 
     class Filter {
     public:
-        virtual bool apply(const IPTuple &t) const = 0;
+        virtual bool apply(const common::IPTuple &t) const = 0;
 
         virtual std::string toString() const = 0;
     };
@@ -49,7 +49,7 @@ namespace filter {
     };
 
     class AndFilter
-            : public BoolFilter { // everything must apply to pass this filter, every filter can only have one instance of one filterable object
+            : public BoolFilter { // everything must apply to pass this reader, every reader can only have one instance of one filterable object
         std::vector<Filter *> filters{};
     public:
         AndFilter() = default;
@@ -58,7 +58,7 @@ namespace filter {
             filters.push_back(filter);
         }
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             for (auto f : filters) {
                 if (!f->apply(t)) {
                     return false;
@@ -81,7 +81,7 @@ namespace filter {
 
     };
 
-    class OrFilter : public BoolFilter { //only one element of filter must apply
+    class OrFilter : public BoolFilter { //only one element of reader must apply
     private:
         std::vector<Filter *> filters{};
     public:
@@ -91,7 +91,7 @@ namespace filter {
             filters.push_back(filter);
         }
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             if (filters.empty()) {
                 return true;
             }
@@ -123,7 +123,7 @@ namespace filter {
     public:
         SrcIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getV4Src() == addr;
@@ -154,7 +154,7 @@ namespace filter {
     public:
         DstIPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getV4Dst() == addr;
@@ -184,7 +184,7 @@ namespace filter {
     public:
         IPFilter(uint32_t addr, Operator op) : addr(addr), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             return SrcIPFilter{addr, op}.apply(t) || DstIPFilter{addr, op}.apply(t);
         }
 
@@ -200,7 +200,7 @@ namespace filter {
     public:
         SrcPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getPortSrc() == port;
@@ -231,7 +231,7 @@ namespace filter {
     public:
         DstPortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getPortDst() == port;
@@ -261,7 +261,7 @@ namespace filter {
     public:
         PortFilter(uint16_t port, Operator op) : port(port), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             return SrcPortFilter{port, op}.apply(t) || DstPortFilter{port, op}.apply(t);
         }
 
@@ -277,7 +277,7 @@ namespace filter {
     public:
         ProtocolFilter(uint8_t protocolId, Operator op) : protocolId(protocolId), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getProtocol() == protocolId;
@@ -308,7 +308,7 @@ namespace filter {
     public:
         LengthFilter(uint16_t length, Operator op) : length(length), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (op) {
                 case equal:
                     return t.getLength() == length;
@@ -339,7 +339,7 @@ namespace filter {
     public:
         TimeFilter(timeval time, Operator op) : time(time), op(op) {}
 
-        bool apply(const IPTuple &t) const override {
+        bool apply(const common::IPTuple &t) const override {
             switch (this->op) {
                 case equal:
                     return t.getTvSec() == static_cast<uint64_t>(time.tv_sec) &&
@@ -349,7 +349,7 @@ namespace filter {
                            t.getTvUsec() != static_cast<uint64_t>(time.tv_usec);
                 case lessThan:
                     return t.getTvSec() < static_cast<uint64_t>(this->time.tv_sec) ||
-                            (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
+                           (t.getTvSec() == static_cast<uint64_t>(this->time.tv_sec) &&
                             t.getTvUsec() < static_cast<uint64_t>(this->time.tv_usec));
                 case greaterThan:
                     return t.getTvSec() >= static_cast<uint64_t>(time.tv_sec) ||
@@ -394,7 +394,7 @@ namespace filter {
         }
 
         bool apply(const uint64_t &fromTimeFile,
-                   const uint64_t &toTimeFile) const { //overlap if at least one of the parameters is between from & to of filter if filter is set (at leas one of from & to is not zero)
+                   const uint64_t &toTimeFile) const { //overlap if at least one of the parameters is between from & to of reader if reader is set (at leas one of from & to is not zero)
             return (from == 0 && to == 0) ||
                    (fromTimeFile <= from && from <= toTimeFile) ||
                    (fromTimeFile <= to && to <= toTimeFile) ||
@@ -408,77 +408,85 @@ namespace filter {
     };
 
     //checks if IP address is in queried IpVector
-    class IpPreFilter{
-        std::vector<uint32_t>equalTo;
-        std::vector<uint32_t>greaterThan;
-        std::vector<uint32_t>lessThan;
+    class IpPreFilter {
+        std::vector<uint32_t> equalTo;
+        std::vector<uint32_t> greaterThan;
+        std::vector<uint32_t> lessThan;
     public:
-        IpPreFilter(){
+        IpPreFilter() {
             equalTo = {};
             greaterThan = {};
             lessThan = {};
         }
-        void addEqual(uint32_t addr){
+
+        void addEqual(uint32_t addr) {
             equalTo.push_back(addr);
         }
-        void addGreaterThan(uint32_t addr){
+
+        void addGreaterThan(uint32_t addr) {
             greaterThan.push_back(addr);
         }
-        void addLessThan(uint32_t addr){
+
+        void addLessThan(uint32_t addr) {
             lessThan.push_back(addr);
         }
-        bool apply(const std::vector<uint32_t>& addresses, const uint32_t& additional1, const uint32_t& additional2) const{
-            for(uint32_t equalAddr : equalTo){
+
+        bool
+        apply(const std::vector<uint32_t> &addresses, const uint32_t &additional1, const uint32_t &additional2) const {
+            for (uint32_t equalAddr : equalTo) {
                 //check if IP address
-                if(additional1 == equalAddr || additional2 == equalAddr || std::find(addresses.begin(), addresses.end(), equalAddr) != addresses.end()){
+                if (additional1 == equalAddr || additional2 == equalAddr ||
+                    std::find(addresses.begin(), addresses.end(), equalAddr) != addresses.end()) {
                     return true;
                 }
             }
 
-            for(uint32_t greaterThanAddr : greaterThan){
+            for (uint32_t greaterThanAddr : greaterThan) {
                 pcpp::IPv4Address test(greaterThanAddr);
-                if(additional1 >= greaterThanAddr || additional2 >= greaterThanAddr || std::find_if(addresses.begin(), addresses.end(), [&greaterThanAddr](const uint32_t& val){
-                    return val>=greaterThanAddr;
-                }) != greaterThan.end()){
+                if (additional1 >= greaterThanAddr || additional2 >= greaterThanAddr ||
+                    std::find_if(addresses.begin(), addresses.end(), [&greaterThanAddr](const uint32_t &val) {
+                        return val >= greaterThanAddr;
+                    }) != greaterThan.end()) {
                     return true;
                 }
             }
 
-            for(uint32_t lessThanAddr : lessThan){
-                if(additional1 <= lessThanAddr || additional2 <= lessThanAddr || std::find_if(addresses.begin(), addresses.end(), [&lessThanAddr](const uint32_t& val){
-                    return val>=lessThanAddr;
-                }) != greaterThan.end()){
+            for (uint32_t lessThanAddr : lessThan) {
+                if (additional1 <= lessThanAddr || additional2 <= lessThanAddr ||
+                    std::find_if(addresses.begin(), addresses.end(), [&lessThanAddr](const uint32_t &val) {
+                        return val >= lessThanAddr;
+                    }) != greaterThan.end()) {
                     return true;
                 }
             }
             //if no IP addresses are set return true;
-            if(equalTo.empty() && greaterThan.empty() && lessThan.empty()){
+            if (equalTo.empty() && greaterThan.empty() && lessThan.empty()) {
                 return true;
-            }else{
+            } else {
                 return false;
             }
         }
 
-        std::string toString() const{
+        std::string toString() const {
             std::string ret{};
-            ret+= "equal: ";
-            for(auto x : equalTo){
-                ret += std::to_string(x) + " " ;
+            ret += "equal: ";
+            for (auto x : equalTo) {
+                ret += std::to_string(x) + " ";
             }
             ret += " greater: ";
-            for(auto x : greaterThan){
-                ret += std::to_string(x) + " " ;
+            for (auto x : greaterThan) {
+                ret += std::to_string(x) + " ";
             }
             ret += " less: ";
-            for(auto x : lessThan){
-                ret += std::to_string(x) + " " ;
+            for (auto x : lessThan) {
+                ret += std::to_string(x) + " ";
             }
             return ret;
         }
 
     };
 //TODO probably recursive parsing with parentheses would be better
-//right now looking for operators first, then identifying the filter types from left to right
+//right now looking for operators first, then identifying the reader types from left to right
 //eg ip.addr == 10.0.0.6 || ip.addr == 212.199.202.9 && udp
 //too complex grammar
 //frame.time <= "Oct 15, 2013 16:00:00"
@@ -740,23 +748,23 @@ namespace filter {
         return ret;
     }
 
-    IpPreFilter makeIpPreFilter(const std::string &filterString){
+    IpPreFilter makeIpPreFilter(const std::string &filterString) {
         IpPreFilter ret{};
         std::vector<std::string> commands = prepareCommands(filterString);
 
-        for (size_t i = 0 ; i < commands.size(); ++i){
-            if(commands.at(i) == "ip.addr" || commands.at(i) == "ip.src" || commands.at(i) == "ip.dst"){
-                uint32_t addr = pcpp::IPv4Address(commands.at(i+2)).toInt();
-                if(commands.at(i+1) == "=="){
+        for (size_t i = 0; i < commands.size(); ++i) {
+            if (commands.at(i) == "ip.addr" || commands.at(i) == "ip.src" || commands.at(i) == "ip.dst") {
+                uint32_t addr = pcpp::IPv4Address(commands.at(i + 2)).toInt();
+                if (commands.at(i + 1) == "==") {
                     ret.addEqual(addr);
-                }else if(commands.at(i+1) == "<" || commands.at(i+1) == "<="){
-                    std::cout<< "WARNING: comparison operator for IP addresses might work different than expected!\n";
+                } else if (commands.at(i + 1) == "<" || commands.at(i + 1) == "<=") {
+                    std::cout << "WARNING: comparison operator for IP addresses might work different than expected!\n";
                     ret.addLessThan(addr);
-                }else if(commands.at(i+1) == ">" || commands.at(i+1) == ">="){
-                    std::cout<< "WARNING: comparison operator for IP addresses might work different than expected!\n";
+                } else if (commands.at(i + 1) == ">" || commands.at(i + 1) == ">=") {
+                    std::cout << "WARNING: comparison operator for IP addresses might work different than expected!\n";
                     ret.addGreaterThan(addr);
-                }else{
-                    std::cout<<"must not happen!\n";
+                } else {
+                    std::cout << "must not happen!\n";
                     assert(false);
                 }
             }
@@ -775,7 +783,7 @@ namespace filter {
             std::string value = commands.at(++i);
             std::string nextBoolFilter = "NULL";
 
-            if (i + 1 < commands.size()) { //there is a command next, it must be a boolean filter
+            if (i + 1 < commands.size()) { //there is a command next, it must be a boolean reader
                 nextBoolFilter = commands.at(++i);
             }
 
@@ -828,7 +836,7 @@ namespace filter {
                 orFilter->addFilter(typeFilter);
                 boolFilter->addFilter(orFilter);
                 boolFilter = orFilter;
-            } else if (nextBoolFilter == "NULL") { //no new filter query must end, add to previous filter
+            } else if (nextBoolFilter == "NULL") { //no new reader query must end, add to previous reader
                 boolFilter->addFilter(typeFilter);
                 break;
             } else {
