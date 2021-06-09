@@ -1,0 +1,3 @@
+count unique ip src addresses with tshark
+
+tshark -r test6.pcap -T fields -e ip.src | sort | uniq | wc -l

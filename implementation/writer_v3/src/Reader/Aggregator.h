@@ -9,6 +9,7 @@
 #include "../Common/IPTuple.h"
 #include <vector>
 #include <numeric>
+
 namespace reader {
     enum AggregationOperator {
         sum,
@@ -33,7 +34,7 @@ namespace reader {
         tsl::robin_map<uint64_t, std::vector<uint32_t>> map{};
         AggregationOperator op;
         IpTupleField field;
-        uint32_t interval; //interval in microseconds
+        uint64_t interval; //interval in microseconds
 
     public:
         Aggregator() = delete;
@@ -42,7 +43,7 @@ namespace reader {
 
         Aggregator &operator=(const Aggregator &) = delete;
 
-        Aggregator(AggregationOperator op, IpTupleField field, uint32_t interval) : op(op), field(field),
+        Aggregator(AggregationOperator op, IpTupleField field, uint64_t interval) : op(op), field(field),
                                                                                     interval(interval) {}
 
         void add(const common::IPTuple &ipTuple) {
@@ -80,24 +81,42 @@ namespace reader {
             }
         };
 
-        std::vector<uint32_t> calculate() {
-            std::vector<uint32_t> ret{};
+        tsl::robin_map<uint64_t, uint32_t> calculate() {
+            tsl::robin_map<uint64_t, uint32_t> ret{};
             ret.reserve(map.size());
 
-           std::function<uint32_t(const std::vector<uint32_t> &vec)> agg;
+            std::function<uint32_t(const std::vector<uint32_t> &vec)> agg;
             switch (this->op) {
                 case sum:
-                    agg = [](const std::vector<uint32_t> &vec){return std::accumulate(vec.begin(), vec.end(), 0);};
+                    agg = [](const std::vector<uint32_t> &vec) { return std::accumulate(vec.begin(), vec.end(), 0); };
                     break;
-                case mean: break;
-                case min: break;
-                case max: break;
-                case count: break;
-                case count_dist: break;
+                case mean:
+                    agg = [](const std::vector<uint32_t> &vec) {
+                        return std::accumulate(vec.begin(), vec.end(), 0) / vec.size();
+                    };
+                    break;
+                case min:
+                    agg = [](const std::vector<uint32_t> &vec) { return *std::min_element(vec.begin(), vec.end()); };
+                    break;
+                case max:
+                    agg = [](const std::vector<uint32_t> &vec) { return *std::max_element(vec.begin(), vec.end()); };
+                    break;
+                case count:
+                    agg = [](const std::vector<uint32_t> &vec) { return vec.size(); };
+                    break;
+                case count_dist:
+                    agg = [](const std::vector<uint32_t> &vec) {
+                        auto temp = vec; //todo prevent copy
+                        std::sort(temp.begin(), temp.end());
+                        auto it = std::unique(temp.begin(), temp.end());
+                        return it - temp.begin();
+                    };
+                    break;
             }
 
             for (const auto &entry : map) {
-                ret.emplace_back(agg(entry.second));
+                auto newEntry = std::pair<uint64_t, uint32_t>(entry.first * interval, agg(entry.second));
+                ret.insert(newEntry);
             }
 
             return ret;
