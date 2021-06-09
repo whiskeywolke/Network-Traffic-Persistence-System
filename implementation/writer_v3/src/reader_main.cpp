@@ -239,7 +239,7 @@ int main(int argc, char *argv[]) {
     }
     ///perform aggregation operations & write to csv
     else {
-        outThreads.emplace_back(reader::threadOperations::aggregates, aggregationOperator, aggregationField,
+        outThreads.emplace_back(reader::threadOperations::aggregate, (outFilePath + query.toString()), aggregationOperator, aggregationField,
                                 aggregationInterval, std::ref(ipTuples), std::ref(filterIpTuplesFinished));
     }
 

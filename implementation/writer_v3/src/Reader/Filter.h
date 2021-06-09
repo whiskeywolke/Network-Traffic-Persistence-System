@@ -28,11 +28,11 @@ namespace reader {
         lessThanEqual,
         greaterThanEqual,
     };
-/*static const char *operatorType[] = {
+/*static const char *ComparisonOperatorType[] = {
         "==", "!=", "<", ">", "<=", ">="
 };
 */
-    static const std::vector<std::string> operatorType = {
+    static const std::vector<std::string> ComparisonOperatorType = {
             "==", "!=", "<", ">", "<=", ">="
     };
 
@@ -143,7 +143,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "ip.src " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
+            return "ip.src " + std::string(ComparisonOperatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
 
@@ -174,7 +174,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "ip.dst " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
+            return "ip.dst " + std::string(ComparisonOperatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
 
@@ -189,7 +189,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "ip.addr " + std::string(operatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
+            return "ip.addr " + std::string(ComparisonOperatorType[op]) + " " + pcpp::IPv4Address(addr).toString();
         }
     };
 
@@ -220,7 +220,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "port.src " + std::string(operatorType[op]) + " " + std::to_string(port);
+            return "port.src " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -251,7 +251,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "port.dst " + std::string(operatorType[op]) + " " + std::to_string(port);
+            return "port.dst " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -266,7 +266,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "port " + std::string(operatorType[op]) + " " + std::to_string(port);
+            return "port " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(port);
         }
     };
 
@@ -297,7 +297,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "proto " + std::string(operatorType[op]) + " " + std::to_string(protocolId);
+            return "proto " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(protocolId);
         }
     };
 
@@ -328,7 +328,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "length " + std::string(operatorType[op]) + " " + std::to_string(length);
+            return "length " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(length);
         }
     };
 
@@ -369,7 +369,7 @@ namespace reader {
         }
 
         std::string toString() const override {
-            return "frame.time: " + std::string(operatorType[op]) + " " + std::to_string(time.tv_sec) + " " +
+            return "frame.time: " + std::string(ComparisonOperatorType[op]) + " " + std::to_string(time.tv_sec) + " " +
                    std::to_string(time.tv_usec);
         }
     };
@@ -692,10 +692,10 @@ namespace reader {
 
                 struct timeval t = stringToTimeval(commands.at(i + 2));
                 uint64_t temp = t.tv_sec * 1000000 + t.tv_usec;
-                ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(operatorType.begin(),
-                                                                                      std::find(operatorType.begin(),
-                                                                            operatorType.end(),
-                                                                            commands.at(i + 1))));
+                ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(ComparisonOperatorType.begin(),
+                                                                                      std::find(ComparisonOperatorType.begin(),
+                                                                                                ComparisonOperatorType.end(),
+                                                                                                commands.at(i + 1))));
                 if (temp > maxTime && (op == ComparisonOperator::lessThanEqual || op == ComparisonOperator::lessThan ||
                                        op == ComparisonOperator::equal)) { //can only be a max value if operator is < or <= or ==
                     maxTime = temp;
@@ -787,9 +787,9 @@ namespace reader {
                 nextBoolFilter = commands.at(++i);
             }
 
-            ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(operatorType.begin(),
-                                                                                  std::find(operatorType.begin(), operatorType.end(),
-                                                                        comparison)));
+            ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(ComparisonOperatorType.begin(),
+                                                                                  std::find(ComparisonOperatorType.begin(), ComparisonOperatorType.end(),
+                                                                                            comparison)));
 
             Filter *typeFilter;
             switch (std::distance(filterType.begin(), std::find(filterType.begin(), filterType.end(), command))) {

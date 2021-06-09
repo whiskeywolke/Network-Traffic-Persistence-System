@@ -19,7 +19,9 @@ namespace reader {
         count,
         count_dist
     };
-
+    static const std::vector<std::string> AggregationOperatorStrings = {
+            "sum", "mean", "min", "max", "count", "count_dist"
+    };
     enum IpTupleField {
         v4Src,
         v4Dst,
@@ -28,7 +30,9 @@ namespace reader {
         protocol,
         length
     };
-
+    static const std::vector<std::string> IpTupleFieldStrings = {
+            "v4Src", "v4Dst", "portSrc", "portDst", "protocol", "length"
+    };
     class Aggregator {
     private:
         tsl::robin_map<uint64_t, std::vector<uint32_t>> map{};
