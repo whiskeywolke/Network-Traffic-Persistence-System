@@ -23,20 +23,24 @@ namespace reader{
                            std::atomic<bool> &filterCompressedBucketsFinished) {
 
             for (; startIt < endIt; ++startIt) {
-                common::MetaBucket m;
                 std::string fileName = filePath + *startIt;
-                std::ifstream ifs(fileName);
-                boost::archive::binary_iarchive ia(ifs);
-                ia >> m;
-                std::vector<common::CompressedBucket> temp{};
-                temp.reserve(1000000);
-                for (const common::CompressedBucket &c : m.getStorage()) {
-                    if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
-                        ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
-                        temp.emplace_back(c);
+                try {
+                    common::MetaBucket m;
+                    std::ifstream ifs(fileName);
+                    boost::archive::binary_iarchive ia(ifs);
+                    ia >> m;
+                    std::vector<common::CompressedBucket> temp{};
+                    temp.reserve(1000000);
+                    for (const common::CompressedBucket &c : m.getStorage()) {
+                        if (timeRangePreFilter.apply(c.getMinTimestampAsInt(), c.getMaxTimestampAsInt()) &&
+                            ipPreFilter.apply(c.getDict(), c.getFirstEntry().v4Src, c.getFirstEntry().v4Dst)) {
+                            temp.emplace_back(c);
+                        }
                     }
+                    outQueue.enqueue_bulk(temp.begin(), temp.size());
+                }catch (const boost::archive::archive_exception& e){
+                    std::cout<<"Non critical: Could not read File "<<fileName<<", because: "<<e.what()<<std::endl;
                 }
-                outQueue.enqueue_bulk(temp.begin(), temp.size());
             }
             {
                 std::lock_guard<std::mutex> lock(readerStatusMutex);
