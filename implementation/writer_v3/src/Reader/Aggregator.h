@@ -90,31 +90,31 @@ namespace reader {
             tsl::robin_map<uint64_t, uint32_t> ret{};
             ret.reserve(map.size());
 
-            std::function<uint32_t(const std::vector<uint32_t> &vec)> agg;
+            std::function<std::uint32_t(const std::vector<uint32_t> &vec)> agg;
             switch (this->op) {
                 case sum:
-                    agg = [](const std::vector<uint32_t> &vec) { return std::accumulate(vec.begin(), vec.end(), 0); };
+                    agg = [](const std::vector<uint32_t> &vec) { return std::uint32_t (std::accumulate(vec.begin(), vec.end(), 0)); };
                     break;
                 case mean:
                     agg = [](const std::vector<uint32_t> &vec) {
-                        return std::accumulate(vec.begin(), vec.end(), 0) / vec.size();
+                        return  std::uint32_t (std::accumulate(vec.begin(), vec.end(), 0) / vec.size());
                     };
                     break;
                 case min:
-                    agg = [](const std::vector<uint32_t> &vec) { return *std::min_element(vec.begin(), vec.end()); };
+                    agg = [](const std::vector<uint32_t> &vec) { return  std::uint32_t (*std::min_element(vec.begin(), vec.end())); };
                     break;
                 case max:
-                    agg = [](const std::vector<uint32_t> &vec) { return *std::max_element(vec.begin(), vec.end()); };
+                    agg = [](const std::vector<uint32_t> &vec) { return  std::uint32_t (*std::max_element(vec.begin(), vec.end())); };
                     break;
                 case count:
-                    agg = [](const std::vector<uint32_t> &vec) { return vec.size(); };
+                    agg = [](const std::vector<uint32_t> &vec) { return  std::uint32_t (vec.size()); };
                     break;
                 case count_dist:
                     agg = [](const std::vector<uint32_t> &vec) {
                         auto temp = vec; //todo prevent copy
                         std::sort(temp.begin(), temp.end());
                         auto it = std::unique(temp.begin(), temp.end());
-                        return it - temp.begin();
+                        return  std::uint32_t (it - temp.begin());
                     };
                     break;
             }

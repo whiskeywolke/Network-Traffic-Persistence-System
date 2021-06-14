@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <iostream>
-#include <dirent.h>
 #include <fstream>
 #include <mutex>
 
@@ -9,11 +8,7 @@
 #include "Reader/ThreadOperations/PcapWriterThread.h"
 #include "Reader/ThreadOperations/OutThread.h"
 #include "Reader/ThreadOperations/AggregationThread.h"
-#include "Reader/Filter.h"
-#include "Reader/Aggregator.h"
 
-#include "Common/ConcurrentQueue/concurrentqueue.h"
-#include "Common/CompressedBucket.h"
 #include "Common/Directory.h"
 
 #define READER_THREADS 4

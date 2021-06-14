@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     ///flags set by arguments
     std::string outFilePath = "./"; //default directory
     std::string inFilename;
-    std::string deviceName = "";
+    std::string deviceName;
     bool fileCapture = false;
     bool liveCapture = false;
     bool sequentialExecution = false;
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
                 outFilePath.append("/");
             }
         } else if (strcmp(argv[i], "-fI") == 0) { //using hardcoded predefined fileCapture
-            inFilename = inputFiles.at(atoi(argv[++i]));
+            inFilename = inputFiles.at(std::stoi(argv[++i]));
             fileCapture = true;
         } else if (strcmp(argv[i], "-f") == 0) {
             inFilename = argv[++i];

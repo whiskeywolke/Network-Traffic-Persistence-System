@@ -60,7 +60,7 @@ namespace writer {
             ///wait for stop signal
             signal(SIGINT, handleSignal);
             while (!shutdownLiveReader) {
-                sleep(1.5);
+                sleep(1);
             }
 
             ///stop device

@@ -22,7 +22,7 @@ namespace common{
         while ((entry = readdir(dir)) != nullptr) {
             std::string filename = entry->d_name;
             if (filename.length() == 37 && filename.substr(33, 36) == ".bin" && filename.at(16) == '-') {
-                struct stat st;
+                struct stat st{};
                 if (stat((path + filename).c_str(), &st) == 0)
                     filesizeBytes += st.st_size;
                 else {

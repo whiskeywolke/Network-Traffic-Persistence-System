@@ -54,7 +54,7 @@ namespace reader {
     public:
         AndFilter() = default;
 
-        void addFilter(Filter *filter) {
+        void addFilter(Filter *filter) override{
             filters.push_back(filter);
         }
 
@@ -87,7 +87,7 @@ namespace reader {
     public:
         OrFilter() = default;
 
-        void addFilter(Filter *filter) {
+        void addFilter(Filter *filter) override{
             filters.push_back(filter);
         }
 
@@ -402,7 +402,7 @@ namespace reader {
                    (from <= toTimeFile && toTimeFile <= to);
         }
 
-        std::string toString() {
+        std::string toString() const{
             return "from: " + std::to_string(from) + " to: " + std::to_string(to);
         }
     };
@@ -540,7 +540,7 @@ namespace reader {
         } else if (month == "Mar" || month == "mar") {
             timeString.erase(0, 1);
             timeString.at(0) = '0';
-            timeString.at(1) = '2';
+            timeString.at(1) = '3';
         } else if (month == "Apr" || month == "apr") {
             timeString.erase(0, 1);
             timeString.at(0) = '0';
@@ -795,7 +795,7 @@ namespace reader {
                 ComparisonOperatorType.end()) {
                 std::cout << "Unknown Comparison Type: " << comparison << std::endl;
                 std::cout << "Possible Comparison Type are:\n";
-                for (const auto cmd : ComparisonOperatorType) {
+                for (const auto &cmd : ComparisonOperatorType) {
                     std::cout << "   " << cmd << '\n';
                 }
                 exit(1);
@@ -841,7 +841,7 @@ namespace reader {
                 default:
                     std::cout << "Unknown Filter Type: " << command << std::endl;
                     std::cout << "Possible Filter Type are:\n";
-                    for (const auto cmd : filterType) {
+                    for (const auto &cmd : filterType) {
                         std::cout << "   " << cmd << '\n';
                     }
                     exit(1);
