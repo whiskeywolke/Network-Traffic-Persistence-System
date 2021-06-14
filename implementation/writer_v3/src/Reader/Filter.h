@@ -674,9 +674,9 @@ namespace reader {
         bool timeIsIrrelevant = false;
 
         for (size_t i = 0; i < commands.size(); ++i) {
-            //in case a known command that is not frame.time before or after the time is linked with "or"
-            // everything needs to be searched e.g. (udp || time.frame > 5) or e.g. (time.frame > 5 || udp) means that all UDPn packets are wanted and all other packets with a timestamp greater than 5
-            //in this case all files need to be searched
+            ///in case a known command that is not frame.time before or after the time is linked with "or"
+            /// everything needs to be searched e.g. (udp || time.frame > 5) or e.g. (time.frame > 5 || udp) means that all UDPn packets are wanted and all other packets with a timestamp greater than 5
+            ///in this case all files need to be searched
 
 
             if (std::find(filterType.begin(), filterType.end(), commands.at(i)) != filterType.end() &&
