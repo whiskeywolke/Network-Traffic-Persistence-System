@@ -35,7 +35,6 @@ namespace reader {
                 return a.first<b.first;
             });
 
-            //todo csv file name & path, combined from query & aggregation
             ///writing csv file
             filename += "_" + AggregationOperatorStrings.at(op);
             filename += "_" + IpTupleFieldStrings.at(field);

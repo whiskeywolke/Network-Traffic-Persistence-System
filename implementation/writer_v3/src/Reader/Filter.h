@@ -485,7 +485,7 @@ namespace reader {
         }
 
     };
-//TODO probably recursive parsing with parentheses would be better
+
 //right now looking for operators first, then identifying the reader types from left to right
 //eg ip.addr == 10.0.0.6 || ip.addr == 212.199.202.9 && udp
 //too complex grammar

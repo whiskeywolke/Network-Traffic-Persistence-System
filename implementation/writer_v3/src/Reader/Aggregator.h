@@ -33,6 +33,7 @@ namespace reader {
     static const std::vector<std::string> IpTupleFieldStrings = {
             "v4Src", "v4Dst", "portSrc", "portDst", "protocol", "length"
     };
+
     class Aggregator {
     private:
         tsl::robin_map<uint64_t, std::vector<uint32_t>> map{};

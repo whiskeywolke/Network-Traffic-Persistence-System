@@ -64,10 +64,10 @@ namespace common {
         //uint32_t addrIndex;
         uint8_t addrIndex;
         bool isSrc;
-        int32_t timestamp_offset; //needs to be at least int32 -> max pos observed offset = 1.050.534.429, min ~-1.000.000 this means cutting negative offset would not bring any meaningful improvement
+        int32_t timestamp_offset; ///needs to be at least int32 -> max pos observed offset = 1.050.534.429, min ~-1.000.000 this means cutting negative offset would not bring any meaningful improvement
 
-        //max observed ports 9000 (14 bits)per bucket TODO add port into port with bitshift (nope dont do that)
-        //less than 1% of buckets have more than 255 ports -> shrink ports to uint8_t with dictionary encoding
+        ///max observed ports 9000 (14 bits)per bucket
+        ///less than 1% of buckets have more than 255 ports -> shrink ports to uint8_t with dictionary encoding
 
         uint16_t portSrc;
         uint16_t portDst;
@@ -162,7 +162,7 @@ namespace common {
                     }
                     hasSecond = true;
 
-                    //TODO remove asserts
+                    ///check that actually one IP address is the same
                     if (matchedBySrc)
                         assert(firstEntry.v4Src == t.getV4Src() || firstEntry.v4Src == t.getV4Dst());
                     else
@@ -170,7 +170,6 @@ namespace common {
                 }
                 bool saveSrcAddr{}; //this means that the src addrIndex of the new Object is different, therefore we need to save it
 
-                //TODO simplify if else statement
                 if (matchedBySrc) { //if we match by src we need to compare it to the src addrIndex since src of the first object is always equal
                     if (t.getV4Src() ==
                         firstEntry.v4Src) { //the src of the new object is equal to src therefore save dst
