@@ -630,10 +630,10 @@ namespace reader {
                 commands.push_back(s);
             }
         }
-        //iterate over commands vector and merge time parameters if set,
-        // remove any empty entries
-        // remove space symbol at the begin and at the end of a commmand
-        // resolve shortcuts like udp tcp icmp
+        /// iterate over commands vector and merge time parameters if set,
+        /// remove any empty entries
+        /// remove space symbol at the begin and at the end of a commmand
+        /// resolve shortcuts like udp tcp icmp
         for (size_t i = 0; i < commands.size(); ++i) {
             std::string tempCommand = commands.at(i);
             std::transform(tempCommand.begin(), tempCommand.end(), tempCommand.begin(), ::tolower);
@@ -693,17 +693,20 @@ namespace reader {
                 struct timeval t = stringToTimeval(commands.at(i + 2));
                 uint64_t temp = t.tv_sec * 1000000 + t.tv_usec;
                 ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(ComparisonOperatorType.begin(),
-                                                                                      std::find(ComparisonOperatorType.begin(),
-                                                                                                ComparisonOperatorType.end(),
-                                                                                                commands.at(i + 1))));
+                                                                                      std::find(
+                                                                                              ComparisonOperatorType.begin(),
+                                                                                              ComparisonOperatorType.end(),
+                                                                                              commands.at(i + 1))));
                 if (temp > maxTime && (op == ComparisonOperator::lessThanEqual || op == ComparisonOperator::lessThan ||
-                                       op == ComparisonOperator::equal)) { //can only be a max value if operator is < or <= or ==
+                                       op ==
+                                       ComparisonOperator::equal)) { //can only be a max value if operator is < or <= or ==
                     maxTime = temp;
                     maxOperator = op;
                     maxFound = true;
                 }
-                if (temp < minTime && (op == ComparisonOperator::greaterThanEqual || op == ComparisonOperator::greaterThan || op ==
-                                                                                                                              ComparisonOperator::equal)) { //can only be a min value if operator is > or >= or ==) {
+                if (temp < minTime &&
+                    (op == ComparisonOperator::greaterThanEqual || op == ComparisonOperator::greaterThan || op ==
+                                                                                                            ComparisonOperator::equal)) { //can only be a min value if operator is > or >= or ==) {
                     minTime = temp;
                     minOperator = op;
                     minFound = true;
@@ -742,7 +745,7 @@ namespace reader {
                 std::cout << "minop: " << minOperator << std::endl;
                 std::cout << ">=: " << ComparisonOperator::greaterThanEqual << std::endl;
                 std::cout << "this time search is not implemented!" << std::endl;
-                assert(false);
+                exit(1);
             }
         }
         return ret;
@@ -787,9 +790,22 @@ namespace reader {
                 nextBoolFilter = commands.at(++i);
             }
 
+            ///check if comparison operator exists
+            if (std::find(ComparisonOperatorType.begin(), ComparisonOperatorType.end(), comparison) ==
+                ComparisonOperatorType.end()) {
+                std::cout << "Unknown Comparison Type: " << comparison << std::endl;
+                std::cout << "Possible Comparison Type are:\n";
+                for (const auto cmd : ComparisonOperatorType) {
+                    std::cout << "   " << cmd << '\n';
+                }
+                exit(1);
+            }
+            ///create comparison operator from string
             ComparisonOperator op = static_cast<ComparisonOperator>(std::distance(ComparisonOperatorType.begin(),
-                                                                                  std::find(ComparisonOperatorType.begin(), ComparisonOperatorType.end(),
-                                                                                            comparison)));
+                                                                                  std::find(
+                                                                                          ComparisonOperatorType.begin(),
+                                                                                          ComparisonOperatorType.end(),
+                                                                                          comparison)));
 
             Filter *typeFilter;
             switch (std::distance(filterType.begin(), std::find(filterType.begin(), filterType.end(), command))) {
@@ -823,8 +839,12 @@ namespace reader {
                     typeFilter = new DstPortFilter(std::stoi(value), op);
                     break;
                 default:
-                    std::cout << "error at: " << command << std::endl;
-                    assert(false);
+                    std::cout << "Unknown Filter Type: " << command << std::endl;
+                    std::cout << "Possible Filter Type are:\n";
+                    for (const auto cmd : filterType) {
+                        std::cout << "   " << cmd << '\n';
+                    }
+                    exit(1);
             }
             if (nextBoolFilter == "&&") {
                 AndFilter *andFilter = new AndFilter();
@@ -836,7 +856,7 @@ namespace reader {
                 orFilter->addFilter(typeFilter);
                 boolFilter->addFilter(orFilter);
                 boolFilter = orFilter;
-            } else if (nextBoolFilter == "NULL") { //no new reader query must end, add to previous reader
+            } else if (nextBoolFilter == "NULL") { ///no new reader query must end, add to previous reader
                 boolFilter->addFilter(typeFilter);
                 break;
             } else {
