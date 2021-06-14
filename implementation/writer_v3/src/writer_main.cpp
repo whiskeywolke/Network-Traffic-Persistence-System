@@ -17,6 +17,7 @@
 #include "Writer/ThreadOperations/CompressorThread.h"
 #include "Writer/ThreadOperations/AggregatorThread.h"
 #include "Writer/ThreadOperations/WriterThread.h"
+#include "Writer/ThreadOperations/LiveCaptureThread.h"
 
 
 inline void join(std::vector<std::thread> &vector) {
@@ -57,7 +58,9 @@ int main(int argc, char *argv[]) {
     ///flags set by arguments
     std::string outFilePath = "./"; //default directory
     std::string inFilename;
-    bool file = false;
+    std::string deviceName = "";
+    bool fileCapture = false;
+    bool liveCapture = false;
     bool sequentialExecution = false;
 
     ///parsing arguments
@@ -67,27 +70,29 @@ int main(int argc, char *argv[]) {
             if (outFilePath.at(outFilePath.size() - 1) != '/') {
                 outFilePath.append("/");
             }
-        }
-        if (strcmp(argv[i], "-fI") == 0) { //using hardcoded predefined file
+        } else if (strcmp(argv[i], "-fI") == 0) { //using hardcoded predefined fileCapture
             inFilename = inputFiles.at(atoi(argv[++i]));
-            file = true;
-        }
-        if (strcmp(argv[i], "-f") == 0) {
+            fileCapture = true;
+        } else if (strcmp(argv[i], "-f") == 0) {
             inFilename = argv[++i];
-            file = true;
-        }
-        if (strcmp(argv[i], "-s") == 0) {
+            fileCapture = true;
+        } else if (strcmp(argv[i], "-s") == 0) {
             sequentialExecution = true;
+        } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "-live") == 0) {
+            liveCapture = true;
+            deviceName = argv[++i];
         }
     }
     ///printing configuration
     if (sequentialExecution) {
         std::cout << "WARNING: Running in sequential mode\n";
     }
-    if (file) {
+    if (fileCapture) {
         std::cout << "Reading from file: " << inFilename << "\n";
+    } else if (liveCapture) {
+        std::cout << "Capturing from device: " << deviceName << "\n";
     } else {
-        std::cout << "no file specified, exiting now\n";
+        std::cout << "no file or device to read from specified, exiting now\n";
         return 0;
     }
     std::cout << "Writing to directory: " + outFilePath << "\n";
@@ -157,39 +162,51 @@ int main(int argc, char *argv[]) {
 
     ///creating threads
     for (int i = 0; i < READER_THREADS; ++i) {
-        readers.emplace_back(writer::threadOperations::readPcapFile, std::ref(inFilename), &readerStatus, i, &queueRaw, std::ref(readerStatus_mutex),
-                             std::ref(readingFinished), std::ref(readingDuration), std::ref(readPackets));
+        if (!liveCapture) {
+            readers.emplace_back(writer::threadOperations::readPcapFile, std::ref(inFilename), &readerStatus, i,
+                                 &queueRaw, std::ref(readerStatus_mutex),
+                                 std::ref(readingFinished), std::ref(readingDuration), std::ref(readPackets));
+        } else {
+            readers.emplace_back(writer::threadOperations::readLiveDevice, std::ref(deviceName), &readerStatus, i,
+                                 &queueRaw, std::ref(readerStatus_mutex),
+                                 std::ref(readingFinished), std::ref(readingDuration), std::ref(readPackets));
+        }
     }
     if (sequentialExecution) { join(readers); }
 
     for (int i = 0; i < CONVERTER_THREADS; ++i) {
-        converters.emplace_back(writer::threadOperations::convert, &converterStatus, i, &queueRaw, &queueParsed, std::ref(converterStatus_mutex),
+        converters.emplace_back(writer::threadOperations::convert, &converterStatus, i, &queueRaw, &queueParsed,
+                                std::ref(converterStatus_mutex),
                                 std::ref(readingFinished), std::ref(conversionFinished), std::ref(conversionDuration));
     }
     if (sequentialExecution) { join(converters); }
 
     for (int i = 0; i < SORTER_THREADS; ++i) {
-        sorters.emplace_back(writer::threadOperations::sortSingleThread, &sorterStatus, i, &queueParsed, &queueSorted, std::ref(sorterStatus_mutex),
+        sorters.emplace_back(writer::threadOperations::sortSingleThread, &sorterStatus, i, &queueParsed, &queueSorted,
+                             std::ref(sorterStatus_mutex),
                              std::ref(conversionFinished), std::ref(sortingFinished), std::ref(sortingDuration));
     }
     if (sequentialExecution) { join(sorters); }
 
     for (int i = 0; i < COMPRESSOR_THREADS; ++i) {
-        compressors.emplace_back(writer::threadOperations::compress, &compressorStatus, i, &queueSorted, &queueCompressed, std::ref(compressorStatus_mutex),
+        compressors.emplace_back(writer::threadOperations::compress, &compressorStatus, i, &queueSorted,
+                                 &queueCompressed, std::ref(compressorStatus_mutex),
                                  std::ref(sortingFinished), std::ref(compressionFinished),
                                  std::ref(compressionDuration));
     }
     if (sequentialExecution) { join(compressors); }
 
     for (int i = 0; i < AGGREGATOR_THREADS; ++i) {
-        aggregators.emplace_back(writer::threadOperations::aggregate, &aggregatorStatus, i, &queueCompressed, &queueFiles, std::ref(aggregatorStatus_mutex),
+        aggregators.emplace_back(writer::threadOperations::aggregate, &aggregatorStatus, i, &queueCompressed,
+                                 &queueFiles, std::ref(aggregatorStatus_mutex),
                                  std::ref(compressionFinished), std::ref(aggregationFinished),
                                  std::ref(aggregationDuration));
     }
     if (sequentialExecution) { join(aggregators); }
 
     for (int i = 0; i < WRITER_THREADS; ++i) {
-        writers.emplace_back(writer::threadOperations::writeToFile, &writerStatus, i, &queueFiles, outFilePath, std::ref(aggregationFinished),
+        writers.emplace_back(writer::threadOperations::writeToFile, &writerStatus, i, &queueFiles, outFilePath,
+                             std::ref(aggregationFinished),
                              std::ref(writingDuration));
     }
     if (sequentialExecution) { join(writers); }
