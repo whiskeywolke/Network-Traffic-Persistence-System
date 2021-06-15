@@ -7,7 +7,7 @@ TESTFILE="/home/ubuntu/testfiles/test4.pcap"
 
 OUTFILE="evaluation.csv"
 
-HEADER="reading_duration;conversion_duration;sorting_duration;compression_duration;aggregation_duration;writing_duration;total_duration;packet_handling_time;packets_per_second;packet_count;total_file_size;bytes_packet;file_count"
+HEADER="Reading Duration;Conversion Duration;Sorting Duration;Compression Duration;Aggregation Duration;Writing Duration;Total Duration;Packet Handling Time;Packets per Second;Packet Count;Total File Size;Bytes per Packet;File Count"
 
 PROGRAMLOCATION="./build/writer/a.out"
 
