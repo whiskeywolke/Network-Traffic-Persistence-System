@@ -27,7 +27,26 @@ namespace writer {
                 } else if (parsedPacket.isPacketOfType(pcpp::ICMP)) {
                     return makeIpTupleFromICMP(parsedPacket, tuple, rawPacket.getPacketTimeStamp());
                 }
-            }
+
+          /*      if (parsedPacket.getLayerOfType<pcpp::IPv4Layer>()->getIPv4Header()->protocol == pcpp::IPProtocolTypes::PACKETPP_IPPROTO_TCP) {
+                    if(rawPacket.getLinkLayerType() == pcpp::LinkLayerType::LINKTYPE_IPV4){
+
+                        common::IPTuple(parsedPacket.getLayerOfType<pcpp::IPv4Layer>()->getSrcIpAddress(),
+                                        parsedPacket.getLayerOfType<pcpp::IPv4Layer>()->getDstIpAddress(),
+                                        ntohs(parsedPacket.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portSrc),
+                                        ntohs(packet.getLayerOfType<pcpp::UdpLayer>()->getUdpHeader()->portDst),
+                                        UDPn,
+                                        packet.getRawPacketReadOnly()->getFrameLength(),
+                                        ts.tv_sec,
+                                        ts.tv_nsec / 1000);
+                    }
+                    return makeIpTupleFromTCP(parsedPacket, tuple, rawPacket.getPacketTimeStamp());
+                } else if (parsedPacket.getLayerOfType<pcpp::IPv4Layer>()->getIPv4Header()->protocol == pcpp::IPProtocolTypes::PACKETPP_IPPROTO_UDP) {
+                    return makeIpTupleFromUDP(parsedPacket, tuple, rawPacket.getPacketTimeStamp());
+                } else if (parsedPacket.getLayerOfType<pcpp::IPv4Layer>()->getIPv4Header()->protocol == pcpp::IPProtocolTypes::PACKETPP_IPPROTO_ICMP) {
+                    return makeIpTupleFromICMP(parsedPacket, tuple, rawPacket.getPacketTimeStamp());
+                }
+       */      }
             return false;
         }
 

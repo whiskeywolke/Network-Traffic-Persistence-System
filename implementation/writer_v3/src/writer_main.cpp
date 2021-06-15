@@ -62,10 +62,11 @@ int main(int argc, char *argv[]) {
     bool fileCapture = false;
     bool liveCapture = false;
     bool sequentialExecution = false;
+    bool benchmarkMode = false;
 
     ///parsing arguments
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-o") == 0) { // output directory specified
+        if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "-out") == 0  || strcmp(argv[i], "-output") == 0) { // output directory specified
             outFilePath = argv[++i];
             if (outFilePath.at(outFilePath.size() - 1) != '/') {
                 outFilePath.append("/");
@@ -73,30 +74,33 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "-fI") == 0) { //using hardcoded predefined fileCapture
             inFilename = inputFiles.at(std::stoi(argv[++i]));
             fileCapture = true;
-        } else if (strcmp(argv[i], "-f") == 0) {
+        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-file") == 0) {
             inFilename = argv[++i];
             fileCapture = true;
-        } else if (strcmp(argv[i], "-s") == 0) {
+        } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "-sequential") == 0) {
             sequentialExecution = true;
         } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "-live") == 0) {
             liveCapture = true;
             deviceName = argv[++i];
+        }else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "-benchmark") == 0) {
+            benchmarkMode = true;
         }
     }
     ///printing configuration
-    if (sequentialExecution) {
-        std::cout << "WARNING: Running in sequential mode\n";
+    if(!benchmarkMode) {
+        if (sequentialExecution) {
+            std::cout << "WARNING: Running in sequential mode\n";
+        }
+        if (fileCapture) {
+            std::cout << "Reading from file: " << inFilename << "\n";
+        } else if (liveCapture) {
+            std::cout << "Capturing from device: " << deviceName << "\n";
+        } else {
+            std::cout << "no file or device to read from specified, exiting now\n";
+            return 0;
+        }
+        std::cout << "Writing to directory: " + outFilePath << "\n";
     }
-    if (fileCapture) {
-        std::cout << "Reading from file: " << inFilename << "\n";
-    } else if (liveCapture) {
-        std::cout << "Capturing from device: " << deviceName << "\n";
-    } else {
-        std::cout << "no file or device to read from specified, exiting now\n";
-        return 0;
-    }
-    std::cout << "Writing to directory: " + outFilePath << "\n";
-
     ///vectors storing worker threads
     std::vector<std::thread> readers{};
     std::vector<std::thread> converters{};
@@ -224,27 +228,42 @@ int main(int argc, char *argv[]) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     /// print results
-    std::cout << "\navg reading duration: \t\t" << readingDuration / READER_THREADS << " nanoseconds\n";
-    std::cout << "avg conversion duration: \t" << conversionDuration / CONVERTER_THREADS << " nanoseconds\n";
-    std::cout << "avg sorting duration: \t\t" << sortingDuration / SORTER_THREADS << " nanoseconds\n";
-    std::cout << "avg compression duration: \t" << compressionDuration / COMPRESSOR_THREADS << " nanoseconds\n";
-    std::cout << "avg aggregation duration: \t" << aggregationDuration / AGGREGATOR_THREADS << " nanoseconds\n";
-    std::cout << "avg writing duration: \t\t" << writingDuration / WRITER_THREADS << " nanoseconds\n";
+    if(benchmarkMode){
+        std::cout << readingDuration / READER_THREADS << ';'
+        << conversionDuration / CONVERTER_THREADS << ';'
+        << sortingDuration / SORTER_THREADS << ';'
+        << compressionDuration / COMPRESSOR_THREADS << ';'
+        << aggregationDuration / AGGREGATOR_THREADS << ';'
+        << writingDuration / WRITER_THREADS << ';'
+        << duration << ';'
+        << duration / readPackets << ';'
+        << 1000000000 / (duration / readPackets) << ';'
+        << readPackets << ';'
+        << common::getTotalFilesSize(outFilePath.c_str())  << ';'
+        << (common::getTotalFilesSize(outFilePath.c_str()) + 0.0) / readPackets <<'\n';
 
-    std::cout << "\ntotal absolute duration: \t\t" << duration << " nanoseconds\n";
-    std::cout << "Handling time per packet: " << duration / readPackets << "; Packets per second: "
-              << 1000000000 / (duration / readPackets) << "\n";
-    std::cout << "Packet Count: " << readPackets << "\n";
-    std::cout << "Total File size: " << common::getTotalFilesSize(outFilePath.c_str()) << " Bytes \n";
-    std::cout << "Avg Bytes per Packet: " << (common::getTotalFilesSize(outFilePath.c_str()) + 0.0) / readPackets
-              << " Bytes \n";
+    }else {
+        std::cout << "\navg reading duration: \t\t" << readingDuration / READER_THREADS << " nanoseconds\n";
+        std::cout << "avg conversion duration: \t" << conversionDuration / CONVERTER_THREADS << " nanoseconds\n";
+        std::cout << "avg sorting duration: \t\t" << sortingDuration / SORTER_THREADS << " nanoseconds\n";
+        std::cout << "avg compression duration: \t" << compressionDuration / COMPRESSOR_THREADS << " nanoseconds\n";
+        std::cout << "avg aggregation duration: \t" << aggregationDuration / AGGREGATOR_THREADS << " nanoseconds\n";
+        std::cout << "avg writing duration: \t\t" << writingDuration / WRITER_THREADS << " nanoseconds\n";
 
-    std::cout << "\nqueueRaw size: " << queueRaw.size_approx() << "\n";
-    std::cout << "queueParsed size: " << queueParsed.size_approx() << "\n";
-    std::cout << "queueSorted size: " << queueSorted.size_approx() << "\n";
-    std::cout << "queueCompressed size: " << queueCompressed.size_approx() << "\n";
-    std::cout << "queueFiles size: " << queueFiles.size_approx() << "\n";
+        std::cout << "\ntotal absolute duration: \t\t" << duration << " nanoseconds\n";
+        std::cout << "Handling time per packet: " << duration / readPackets << "; Packets per second: "
+                  << 1000000000 / (duration / readPackets) << "\n";
+        std::cout << "Packet Count: " << readPackets << "\n";
+        std::cout << "Total File size: " << common::getTotalFilesSize(outFilePath.c_str()) << " Bytes \n";
+        std::cout << "Avg Bytes per Packet: " << (common::getTotalFilesSize(outFilePath.c_str()) + 0.0) / readPackets
+                  << " Bytes \n";
 
+        std::cout << "\nqueueRaw size: " << queueRaw.size_approx() << "\n";
+        std::cout << "queueParsed size: " << queueParsed.size_approx() << "\n";
+        std::cout << "queueSorted size: " << queueSorted.size_approx() << "\n";
+        std::cout << "queueCompressed size: " << queueCompressed.size_approx() << "\n";
+        std::cout << "queueFiles size: " << queueFiles.size_approx() << "\n";
+    }
     //check that no packets have been left
     assert(queueRaw.size_approx() == 0);
     assert(queueParsed.size_approx() == 0);
