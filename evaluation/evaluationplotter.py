@@ -23,5 +23,15 @@ def main(filename):
         ax1.text(0.03,0.8,text, transform=ax1.transAxes, bbox=box)
 
         plt.savefig(labels[i]+".png")
+        if i >= 6 and i <=8:
+            fig2, ax2 = plt.subplots()
+            ax2.plot(dataset[:,i])
+            ax2.set_title(labels[i])
+            ax2.text(0.03,0.8,text, transform=ax1.transAxes, bbox=box)
+
+            plt.savefig(labels[i]+"_time.png")
+
+
+
 
 main(sys.argv[1])
