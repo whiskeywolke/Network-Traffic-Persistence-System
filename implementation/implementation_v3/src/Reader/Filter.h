@@ -766,8 +766,10 @@ namespace reader {
                 } else if (commands.at(i + 1) == ">" || commands.at(i + 1) == ">=") {
                     std::cout << "WARNING: comparison operator for IP addresses might work different than expected!\n";
                     ret.addGreaterThan(addr);
-                } else {
-                    std::cout << "must not happen!\n";
+                } else if(commands.at(i + 1) == "!="){
+                    ///do nothing since this does not narrow down search
+                }else {
+                    std::cout << "Invalid Operator for IP Comparison!\n";
                     assert(false);
                 }
             }

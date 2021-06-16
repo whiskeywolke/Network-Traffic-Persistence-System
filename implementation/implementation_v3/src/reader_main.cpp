@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
     std::string filterString{};
     bool writePcap = false;
     bool verbose = false;
+    bool benchmarkMode = false;
 
     ///default parameters for aggregation
     bool aggregate = false;
@@ -113,6 +114,8 @@ int main(int argc, char *argv[]) {
                 std::cout << "invalid aggregation field!" << std::endl;
                 exit(0);
             }
+        } else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "-benchmark") == 0) {
+            benchmarkMode = true;
         }
     }
 
@@ -121,17 +124,19 @@ int main(int argc, char *argv[]) {
     reader::parseFilter(filterString, query);
 
     ///printing configuration
-    if (verbose) {
-        std::cout << "Reading from directory: " + inFilePath << std::endl;
-        if (writePcap) {
-            std::cout << "Writing to Pcap file at: " << outFilePath << std::endl;
+    if (!benchmarkMode) {
+        if (verbose) {
+            std::cout << "Reading from directory: " + inFilePath << std::endl;
+            if (writePcap) {
+                std::cout << "Writing to Pcap file at: " << outFilePath << std::endl;
+            }
+            std::cout << "Applying Filter: " << query.toString() << std::endl;
         }
-        std::cout << "Applying Filter: " << query.toString() << std::endl;
-    }
-    ///always print aggregation information since all relevant output is redirected to csv
-    if (aggregate) {
-        std::cout << "Aggregating " << operatorString << " of " << field << " in an interval of "
-                  << (aggregationInterval * 1.0) / 1000000 << " seconds\n";
+        ///always print aggregation information since all relevant output is redirected to csv
+        if (aggregate) {
+            std::cout << "Aggregating " << operatorString << " of " << field << " in an interval of "
+                      << (aggregationInterval * 1.0) / 1000000 << " seconds\n";
+        }
     }
     ///reading files form directory
     auto files = common::getFilesFromDir(inFilePath.c_str());
@@ -232,9 +237,10 @@ int main(int argc, char *argv[]) {
                                     std::ref(filterIpTuplesFinished));
         }
     }
-    ///perform aggregation operations & write to csv
+        ///perform aggregation operations & write to csv
     else {
-        outThreads.emplace_back(reader::threadOperations::aggregate, (outFilePath + query.toString()), aggregationOperator, aggregationField,
+        outThreads.emplace_back(reader::threadOperations::aggregate, (outFilePath + query.toString()),
+                                aggregationOperator, aggregationField,
                                 aggregationInterval, std::ref(ipTuples), std::ref(filterIpTuplesFinished));
     }
 
@@ -260,6 +266,9 @@ int main(int argc, char *argv[]) {
 
         std::cout << "\nduration no write: \t\t" << durationNoWrite << " nanoseconds\n";
         std::cout << "\nduration w/ write: \t\t" << durationWrite << " nanoseconds\n";
+    }
+    if (benchmarkMode) {
+        std::cout << durationNoWrite << ';' << durationWrite - durationNoWrite << ';' << durationWrite << '\n';
     }
     return 0;
 }
