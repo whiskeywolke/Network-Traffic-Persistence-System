@@ -25,6 +25,8 @@ def main():
     text = "caida large dataset = " + str(np.round(np.average(dataset1), 4)) + "\ncaida small dataset = " + str(np.round(np.average(dataset2), 4))  + "\nown traffic = " + str(np.round(np.average(dataset3), 4)) 
     box = dict(boxstyle='round', facecolor='white', alpha=0.5)
     ax1.text(0.54,0.84,text, transform=ax1.transAxes, bbox=box)
+    ax1.set_ylabel("bytes")
+    ax1.set_xlabel("dataset")
     plt.savefig('Compression Comparison.png')
 
 
