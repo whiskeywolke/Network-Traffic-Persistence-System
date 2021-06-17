@@ -4,8 +4,8 @@ WRITEDIR="/home/ubuntu/testfiles/evaluation/"
 
 #SOURCEDIR="/home/ubuntu/testfiles/dir/tempmini" #mini file for scipt testing
 #SOURCEDIR="/home/ubuntu/testfiles/dir-1-3" #1.3gb own traffic
-SOURCEDIR="/home/ubuntu/testfiles/dir-1-6" #1.6gb
-#SOURCEDIR="/home/ubuntu/testfiles/dir-6-7" #6.7gb
+#SOURCEDIR="/home/ubuntu/testfiles/dir-1-6" #1.6gb
+SOURCEDIR="/home/ubuntu/testfiles/dir-6-7" #6.7gb
 
 SIMPLEQUERY="frame.len > 0 &&  frame.time < Jun 15, 2021 12:00:00"
 COMPLEXQUERY="frame.len > 0 && frame.len <= 99999999 && frame.time < Jun 15, 2021 12:00:00 &&  frame.time > Jun 15, 2000 12:00:00"
