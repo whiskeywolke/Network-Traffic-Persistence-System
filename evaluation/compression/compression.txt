@@ -1,0 +1,11 @@
+bytes per packet original 354.45 bytes + 16 bytes for timestamp (caida dataset)
+
+bytes per packet trimmed (only header) 20 bytes ipv4 header + 20 bytes tcp header (83,75%)
+bytes per packet trimmed (only header) 20 bytes ipv4 header + 8 bytes udp header (14,62%)
+bytes per packet trimmed (only header) 20 bytes ipv4 header + 8 bytes icmp header (0,51%)
+bytes per packet trimmed (only header) 20 bytes ipv4 header + 17.96 (18) bytes avg header + 16 bytes timestamp
+
+bytes per packet IP tuple (ip, port, length, protocol) 15 bytes + 16bytes timestamp 
+
+bytes per packet 17,2542 bytes, including 8 bytes timestamp
+
