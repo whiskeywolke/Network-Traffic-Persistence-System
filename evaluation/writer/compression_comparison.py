@@ -16,7 +16,7 @@ def main():
 
 
     fig1, ax1 = plt.subplots()
-    ax1.set_title(label + " different datasets")
+    ax1.set_title("Bytes per packet different datasets")
     ax1.boxplot(dataset1, positions=[1])
     ax1.boxplot(dataset2, positions=[2])
     ax1.boxplot(dataset3, positions=[3])

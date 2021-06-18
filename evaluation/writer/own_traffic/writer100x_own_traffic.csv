@@ -1,4 +1,4 @@
-Reading Duration;Conversion Duration;Sorting Duration;Compression Duration;Aggregation Duration;Writing Duration;Total Duration;Packet Handling Time;Packets per Second;Packet Count;Total File Size;Bytes per Packet;File Count
+Reading duration;Conversion duration;Sorting duration;Compression duration;Aggregation duration;Writing duration;Total duration;Packet handling time;Packets per second;Packet count;Total file size;Bytes per packet;File count
 1992797850;1993387948;1996505567;2026048996;2035291118;2085391120;2136664280;2071;482858;1031564;13411410;13.001;1
 1153076417;1153132201;1156275059;1185855509;1195086965;1247623213;1299751432;1259;794281;1031564;13411446;13.0011;1
 1084196662;1084403000;1088112177;1119899653;1128610004;1178760975;1229403902;1191;839630;1031564;13411346;13.001;1

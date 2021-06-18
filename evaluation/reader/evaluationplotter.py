@@ -21,12 +21,15 @@ def main(filename):
         text = "min = " + str(min(dataset[:,i])) + "\nmax = " + str(max(dataset[:,i])) + "\nmean = " + str(np.round(np.average(dataset[:,i]), 4)) + "\nmedian = " + str(np.round(median(dataset[:,i]),4))
         box = dict(boxstyle='round', facecolor='white', alpha=0.5)
         ax1.text(0.03,0.8,text, transform=ax1.transAxes, bbox=box)
+        ax1.set_ylabel('nanoseconds')
+
         plt.savefig(labels[i]+"_box.png")
 
         fig2, ax2 = plt.subplots()
         ax2.plot(dataset[:,i])
         ax2.set_title(labels[i])
         ax2.text(0.03,0.8,text, transform=ax1.transAxes, bbox=box)
+        ax2.set_ylabel('nanoseconds')
 
         plt.savefig(labels[i]+"_time.png")
 

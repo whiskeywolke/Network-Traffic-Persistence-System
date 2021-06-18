@@ -30,24 +30,27 @@ def main():
         np.set_printoptions(precision=4)
 
         fig1, ax1 = plt.subplots()
-        ax1.set_title("Query Handling Runtime Analysis of " + folder + '\n')
+        ax1.set_title("Query handling runtime analysis of " + folder + '\n')
         ax1.boxplot(datadictHandling.values(), showfliers=True)
         ax1.set_xticklabels(datadictHandling.keys())
-        plt.savefig("Query Handling Runtime Analysis of " + folder + ".png")
+        ax1.set_ylabel('nanoseconds')
+        plt.savefig("Query handling runtime analysis of " + folder + ".png")
 
 
         fig2, ax2 = plt.subplots()
-        ax2.set_title("Query Writing Runtime Analysis of " + folder + '\n')
+        ax2.set_title("Query writing runtime analysis of " + folder + '\n')
         ax2.boxplot(datadictWriting.values(), showfliers=True)
         ax2.set_xticklabels(datadictWriting.keys())
-        plt.savefig("Query Writing Runtime Analysis of " + folder + ".png")
+        ax2.set_ylabel('nanoseconds')
+        plt.savefig("Query writing runtime analysis of " + folder + ".png")
 
 
         fig3, ax3 = plt.subplots()
-        ax3.set_title("Query Total Runtime Analysis of " + folder + '\n')
+        ax3.set_title("Query total runtime analysis of " + folder + '\n')
         ax3.boxplot(datadictTotal.values(), showfliers=True)
         ax3.set_xticklabels(datadictTotal.keys())
-        plt.savefig("Query Total Runtime Analysis of " + folder + ".png")
+        ax3.set_ylabel('nanoseconds')
+        plt.savefig("Query total runtime analysis of " + folder + ".png")
 
 
 
