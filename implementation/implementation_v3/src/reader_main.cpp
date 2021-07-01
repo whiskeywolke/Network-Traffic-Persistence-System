@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 
     /// parsing arguments
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-i") == 0) { // input directory specified
+        if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "-input") == 0)  { // input directory specified
             inFilePath = argv[++i];
             if (inFilePath.at(inFilePath.size() - 1) != '/') {
                 inFilePath.append("/");
@@ -49,12 +49,12 @@ int main(int argc, char *argv[]) {
             if (outFilePath == "./") { //by default write to same directory as it is read from
                 outFilePath = inFilePath;
             }
-        } else if (strcmp(argv[i], "-o") == 0) {
+        } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "-out") == 0 || strcmp(argv[i], "-output") == 0)   {
             outFilePath = argv[++i];
             if (outFilePath.at(outFilePath.size() - 1) != '/') {
                 outFilePath.append("/");
             }
-        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-reader") == 0) { // filterString specified
+        } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-filter") == 0) { // filterString specified
             ++i;
             while (i < argc && argv[i][0] != '-') { //everything until next parameter (starts with '-') is filterString
                 filterString.append(argv[i]).append(" ");
