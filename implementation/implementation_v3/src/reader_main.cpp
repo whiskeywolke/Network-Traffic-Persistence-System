@@ -193,7 +193,10 @@ int main(int argc, char *argv[]) {
     std::atomic<bool> filterCompressedBucketsFinished{false};
     std::atomic<bool> filterIpTuplesFinished{false};
 
-
+    ///if no files need to be read signalize to other threads that reading is finished
+    if(readingThreadCount == 0){
+        filterCompressedBucketsFinished = true;
+    }
     ///creating threads
     for (size_t i = 0; i < readingThreadCount; ++i) {
         ///splitting files among multiple threads
