@@ -4,6 +4,7 @@ Installing dependencies & building modules (tested on ubuntu 20.04.2)
     sudo apt upgrade
     sudo apt install build-essential git libboost-all-dev libpcap-dev
     git clone https://gitlab.cs.univie.ac.at/ct-student/2021-ss/ba-mente.git
+    cd ba-mente/dependencies
     unzip PcapPlusPlus-20.08.zip -d ../..
     cd ../../PcapPlusPlus-20.08/
     ./configure-linux.sh --use-immediate-mode
