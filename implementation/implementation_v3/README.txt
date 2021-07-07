@@ -43,7 +43,7 @@ Command line flags reader module:
 Query/Filter Language:
     Multiple filters performed on a field of the packet can be chained together, the total query length is variable.
     Abstract Syntax:
-    <IP tuple field> <comparison> <value> <logical operator>*
+    <IP tuple field> <comparison> <value> (<boolean operator> <IP tuple field> <comparison> <value>)*
 
     Values for IP Tuple Field:
         frame.time
@@ -63,7 +63,11 @@ Query/Filter Language:
         <
         >
         <=
-        >= 
+        >=
+
+    Values for boolean operator:
+        &&
+        ||
 
     Values for Value:
         Depends on type either an IP address in formatted in standard format (eg: 10.0.0.1)
@@ -80,7 +84,7 @@ Query/Filter Language:
         Note that filters are evaluated from right to left:
         ip.addr != 0.0.0.0 && frame.time < Jun 15, 2021 12:00:00 || udp
         Will be interpreted as: 
-        ip.addr != 0.0.0.0 && frame.time < Jun 15, 2021 12:00:00 || udp
+        (ip.addr != 0.0.0.0 && (frame.time < Jun 15, 2021 12:00:00 || udp))
 
 
 
