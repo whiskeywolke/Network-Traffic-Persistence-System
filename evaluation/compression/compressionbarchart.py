@@ -6,8 +6,8 @@ labels = ['raw\nPacket','trimmed\npayload','ip 5 tuple','compressed']
 
 timestamps = np.array([16,16,16,8])
 ipHeader = [20,20,5,0]
-meanHeader = [17.96,17.96,3,0]
-payloads = [314.45,0,0,0]
+meanHeader = [18.16,18.16,3,0]
+payloads = [316.37,0,0,0]
 compressed = [0,0,0,9.2542]
 
 width = 0.35
@@ -36,7 +36,7 @@ labels = ['trimmed\npayload','ip 5 tuple','compressed']
 
 timestamps = [16,16,8]
 ipHeader = [20,5,0]
-meanHeader = [17.96,3,0]
+meanHeader = [18.16,3,0]
 payloads = [0,0,0]
 compressed = [0,0,9.2542]
 
